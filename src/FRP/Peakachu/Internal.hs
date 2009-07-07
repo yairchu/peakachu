@@ -1,20 +1,12 @@
 {-# OPTIONS -O2 -Wall #-}
 
-module FRP.Peakachu.Internal where
+module FRP.Peakachu.Internal (
+  Time, Event(..), escanl, efilter, emap
+  ) where
 
-import Control.Concurrent.MVar
-import Control.Generator
-import Control.Generator.Memo
-import Control.Generator.ProducerT
-import Control.Generator.Tools
-import Control.Monad
-import Control.Monad.Trans
-import Data.Function
-import Data.Monoid
-import Graphics.UI.GLUT
-import System.Time
-
--- core
+import Control.Generator (Producer, mmerge)
+import Control.Generator.Tools (ifilter, imap, iscanl)
+import System.Time (ClockTime, getClockTime)
 
 type Time = ClockTime
 

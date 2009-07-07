@@ -1,18 +1,24 @@
 {-# OPTIONS -O2 -Wall #-}
 
-module FRP.Peakachu.Backend.GLUT where
+module FRP.Peakachu.Backend.GLUT (
+  Image, glKeyboardMouseEvents, glutRun
+  ) where
 
-import Control.Generator
-import Control.Concurrent.MVar
-import Control.Generator.Memo
-import Control.Generator.ProducerT
-import Control.Monad
-import Control.Monad.Trans
-import Data.Function
-import Data.Monoid
-import FRP.Peakachu.Internal
-import Graphics.UI.GLUT
-import System.Time
+import Control.Generator (evalConsumerT, next, processRest)
+import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
+import Control.Generator.Memo (memo)
+import Control.Generator.ProducerT (produce, yield)
+import Control.Monad (forever)
+import Control.Monad.Trans (liftIO)
+import Data.Function (fix)
+import Data.Monoid (Monoid(..))
+import FRP.Peakachu.Internal (Event(..))
+import Graphics.UI.GLUT (
+  ($=), ClearBuffer(..), Key(..), KeyState(..),
+  Modifiers, Position,
+  displayCallback, keyboardMouseCallback, idleCallback,
+  clear, flush, mainLoop)
+import System.Time (getClockTime)
 
 data Image = Image (IO ())
 
