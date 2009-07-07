@@ -1,7 +1,7 @@
 {-# OPTIONS -O2 -Wall #-}
 
 module FRP.Peakachu.Backend.GLUT (
-  Image, glKeyboardMouseEvents, glutRun
+  Image(..), glKeyboardMouseEvents, glutRun
   ) where
 
 import Control.Generator (evalConsumerT, next, processRest)

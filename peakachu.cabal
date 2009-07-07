@@ -12,7 +12,8 @@ Library
   hs-Source-Dirs:      src
   Extensions:
   Build-Depends:       base, haskell98, generator, old-time, GLUT, mtl
-  Exposed-modules:     FRP.Peakachu.Backend.GLUT
+  Exposed-modules:     FRP.Peakachu
+                       FRP.Peakachu.Backend.GLUT
                        FRP.Peakachu.Internal
   ghc-options:         -Wall
 

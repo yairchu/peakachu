@@ -1,5 +1,5 @@
-import FRP.Peakachu.Backend.GLUT
-import FRP.Peakachu.Internal
+import FRP.Peakachu (emap, escanl)
+import FRP.Peakachu.Backend.GLUT (Image(..), glKeyboardMouseEvents, glutRun)
 import Graphics.UI.GLUT
 
 redSquare :: Image
