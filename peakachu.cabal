@@ -1,0 +1,17 @@
+Name:                peakachu
+Version:             0.0
+Synopsis:            An FRP attempt
+License:             GPL
+Author:              Yair Chuchem
+Maintainer:          yairchu@gmail.com
+Cabal-Version:       >= 1.2
+Stability:           experiemental
+Build-type:          Simple
+
+Library
+  hs-Source-Dirs:      src
+  Extensions:
+  Build-Depends:       base, haskell98, generator, old-time, GLUT, mtl
+  Exposed-modules:     FRP.Peakachu.Internal
+  ghc-options:         -Wall
+

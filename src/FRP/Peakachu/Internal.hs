@@ -1,5 +1,7 @@
 {-# OPTIONS -O2 -Wall #-}
 
+module FRP.Peakachu.Internal where
+
 import Control.Concurrent.MVar
 import Control.Generator
 import Control.Generator.Memo
