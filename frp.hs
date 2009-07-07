@@ -18,12 +18,13 @@ type Time = ClockTime
 
 data Event a = Event { runEvent :: Producer IO (Time, Maybe a) }
 
-escanl :: (a -> b -> a) -> a -> Event b -> IO (Event a)
-escanl step startVal src = do
-  startTime <- getClockTime
-  return . Event . imap post .
-    iscanl process (startTime, startVal, True) $
-    runEvent src
+escanl :: (a -> b -> a) -> a -> Event b -> Event a
+escanl step startVal src =
+  Event . mmerge $ do
+    startTime <- getClockTime
+    return . imap post .
+      iscanl process (startTime, startVal, True) $
+      runEvent src
   where
     process (_, a, _) (time, b) =
       return $ case b of
@@ -121,5 +122,5 @@ main = do
     post :: Int -> Image
     post 0 = redSquare
     post _ = greenSquare
-  glutRun . emap post =<< escanl (const . (1 -)) 0 kbPresses
+  glutRun . emap post $ escanl (const . (1 -)) 0 kbPresses
 
