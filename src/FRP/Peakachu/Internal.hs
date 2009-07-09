@@ -4,8 +4,9 @@ module FRP.Peakachu.Internal (
   Time, Event(..), escanl, efilter, emap
   ) where
 
-import Control.Generator (Producer, mmerge)
-import Control.Generator.Tools (ifilter, imap, iscanl)
+import Control.Generator.Producer (Producer, joinP)
+import Control.Generator.Folds (filterP, scanlP)
+import Control.Generator.Instances ()
 import System.Time (ClockTime, getClockTime)
 
 type Time = ClockTime
@@ -14,30 +15,30 @@ data Event a = Event { runEvent :: Producer IO (Time, Maybe a) }
 
 escanl :: (a -> b -> a) -> a -> Event b -> Event a
 escanl step startVal src =
-  Event . mmerge $ do
+  Event . joinP $ do
     startTime <- getClockTime
-    return . imap post .
-      iscanl process (startTime, startVal, True) $
+    return . fmap post .
+      scanlP process (startTime, startVal, True) $
       runEvent src
   where
     process (_, a, _) (time, b) =
-      return $ case b of
+      case b of
         Nothing -> (time, a, False)
         Just x -> (time, step a x, True)
-    post (time, _, False) = return (time, Nothing)
-    post (time, a, True) = return (time, Just a)
+    post (time, _, False) = (time, Nothing)
+    post (time, a, True) = (time, Just a)
 
 efilter :: (a -> Bool) -> Event a -> Event a
 efilter cond =
-  Event . ifilter cond' . runEvent
+  Event . filterP cond' . runEvent
   where
-    cond' (_, Nothing) = return True
-    cond' (_, Just x) = return $ cond x
+    cond' (_, Nothing) = True
+    cond' (_, Just x) = cond x
 
 emap :: (a -> b) -> Event a -> Event b
 emap func =
-  Event . imap func' . runEvent
+  Event . fmap func' . runEvent
   where
-    func' (time, Nothing) = return (time, Nothing)
-    func' (time, Just x) = return (time, Just (func x))
+    func' (time, Nothing) = (time, Nothing)
+    func' (time, Just x) = (time, Just (func x))
 

@@ -4,7 +4,7 @@ module FRP.Peakachu.Backend.GLUT (
   Image(..), glKeyboardMouseEvents, glutRun
   ) where
 
-import Control.Generator (evalConsumerT, next, processRest)
+import Control.Generator.Consumer (evalConsumerT, next, consumeRestM)
 import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
 import Control.Generator.Memo (memo)
 import Control.Generator.ProducerT (produce, yield)
@@ -59,7 +59,7 @@ glutRun program = do
         clear [ ColorBuffer ]
         image
         flush
-    liftIO . (idleCallback $=) . Just =<< processRest rest
+    liftIO . (idleCallback $=) . Just =<< consumeRestM rest
   displayCallback $= return ()
   mainLoop
 
