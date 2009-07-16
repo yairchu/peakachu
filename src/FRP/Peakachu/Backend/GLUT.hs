@@ -6,7 +6,7 @@ module FRP.Peakachu.Backend.GLUT (
   glKeyboardMouseEvent, glMotionEvent, glPassiveMotionEvent
   ) where
 
-import Control.Monad (when)
+import Control.Monad (unless)
 import Control.Monad.Consumer (consumeRestM, evalConsumerT, next)
 import Control.Monad.Trans (liftIO)
 import Data.Function (fix)
@@ -60,9 +60,9 @@ glutRun program = do
   (`evalConsumerT` runEvent program) . fix $ \rest -> do
     mx <- next
     case mx of
-      Nothing -> liftIO $ leaveMainLoop
+      Nothing -> liftIO leaveMainLoop
       Just items -> do
-        when (not (null items)) . liftIO $ do
+        unless (null items) . liftIO $ do
           clear [ ColorBuffer ]
           runImage . snd $ last items
           flush

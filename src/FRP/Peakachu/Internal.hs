@@ -37,15 +37,23 @@ instance Monoid (Event a) where
           Cons valsA restA ->
             go (merge2On fst vals valsA) bs restA
 
+prependItems :: [(Time, a)] -> Event a -> Event a
+prependItems pre event =
+  Event . joinL $ do
+    it <- runListT $ runEvent event
+    return $ case it of
+      Nil -> return pre
+      Cons items next -> cons (pre ++ items) next
+
 escanl :: (a -> b -> a) -> a -> Event b -> Event a
 escanl step startVal src =
   Event . joinL $ do
     now <- getClockTime
-    let startItem = (now, startVal)
-    item <- runListT . scanl (scanl vstep . last) [startItem] $ runEvent src
-    return $ case item of
-      Nil -> return [startItem]
-      Cons items next -> cons (startItem : items) next
+    let startItems = [(now, startVal)]
+    return . runEvent .
+      prependItems startItems . Event .
+      scanl (scanl vstep . last) startItems $
+      runEvent src
   where
     vstep (_, a) (t, b) = (t, step a b)
 
@@ -68,15 +76,10 @@ memoEvent event = do
         Nil -> do
           putMVar var $ Just mempty
           return mempty
-        Cons [] xs -> do
-          rest <- memoEvent $ Event xs
-          putMVar var . Just $ runEvent rest
-          return . cons [] $ runEvent rest
         Cons x xs -> do
           rest <- memoEvent $ Event xs
-          let r = cons x $ runEvent rest
-          putMVar var $ Just r
-          return r
+          putMVar var . Just . runEvent $ prependItems x rest
+          return . cons x $ runEvent rest
   return . Event . joinL $ takeMVar var >>= maybe firstRun return
 
 makeCallbackEvent :: IO (Event a, a -> IO ())
