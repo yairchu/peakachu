@@ -1,5 +1,5 @@
-import FRP.Peakachu (emap, escanl)
-import FRP.Peakachu.Backend.GLUT (Image(..), glKeyboardMouseEvents, glutRun)
+import FRP.Peakachu
+import FRP.Peakachu.Backend.GLUT
 import Graphics.UI.GLUT
 
 redSquare :: Image
@@ -22,12 +22,9 @@ greenSquare =
 
 main :: IO ()
 main = do
-  _ <- getArgsAndInitialize
-  createWindow "test"
-  kbPresses <- glKeyboardMouseEvents
   let
     post :: Int -> Image
     post 0 = redSquare
     post _ = greenSquare
-  glutRun . emap post $ escanl (const . (1 -)) 0 kbPresses
+  glutRun . emap post $ escanl (const . (1 -)) 0 glMotionEvent
 
