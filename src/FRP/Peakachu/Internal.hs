@@ -7,8 +7,9 @@ module FRP.Peakachu.Internal (
 
 import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
 import Control.Monad.ListT (ListItem(..), ListT(..))
-import Data.List.Class (cons, joinM, joinL, repeat, scanl)
-import Data.Monoid (mempty)
+import Data.List.Class (
+  cons, joinM, joinL, merge2On, repeat, scanl)
+import Data.Monoid (Monoid(..))
 
 import System.Time (ClockTime, getClockTime)
 import Prelude hiding (repeat, scanl)
@@ -16,6 +17,25 @@ import Prelude hiding (repeat, scanl)
 type Time = ClockTime
 
 newtype Event a = Event { runEvent :: ListT IO [(Time, a)] }
+
+instance Monoid (Event a) where
+  mempty = Event mempty
+  mappend (Event a) (Event b) =
+    Event . joinL $ do
+      item <- runListT a
+      case item of
+        Nil -> return b
+        Cons valsA restA -> go valsA b restA
+    where
+      go vals as bs = do
+        item <- runListT as
+        case item of
+          Nil -> return $ cons vals bs
+          Cons [] restA ->
+            return . cons vals .
+            runEvent $ mappend (Event bs) (Event restA)
+          Cons valsA restA ->
+            go (merge2On fst vals valsA) bs restA
 
 escanl :: (a -> b -> a) -> a -> Event b -> Event a
 escanl step startVal src =
