@@ -60,7 +60,7 @@ glutRun program = do
       Just items -> do
         when (not (null items)) . liftIO $ do
           clear [ ColorBuffer ]
-          runImage $ last items
+          runImage . snd $ last items
           flush
         liftIO . (idleCallback $=) . Just =<< consumeRestM rest
   displayCallback $= return ()

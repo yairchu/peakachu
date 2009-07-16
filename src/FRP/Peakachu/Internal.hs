@@ -10,26 +10,33 @@ import Control.Monad.ListT (ListItem(..), ListT(..))
 import Data.List.Class (cons, joinM, joinL, repeat, scanl)
 import Data.Monoid (mempty)
 
---import System.Time (ClockTime, getClockTime)
+import System.Time (ClockTime, getClockTime)
 import Prelude hiding (repeat, scanl)
 
--- type Time = ClockTime
+type Time = ClockTime
 
-newtype Event a = Event { runEvent :: ListT IO [a] }
+newtype Event a = Event { runEvent :: ListT IO [(Time, a)] }
 
 escanl :: (a -> b -> a) -> a -> Event b -> Event a
 escanl step startVal src =
   Event . joinL $ do
-    item <- runListT . scanl (scanl step . last) [startVal] $ runEvent src
+    now <- getClockTime
+    let startItem = (now, startVal)
+    item <- runListT . scanl (scanl vstep . last) [startItem] $ runEvent src
     return $ case item of
-      Nil -> return [startVal]
-      Cons items next -> cons (startVal : items) next
+      Nil -> return [startItem]
+      Cons items next -> cons (startItem : items) next
+  where
+    vstep (_, a) (t, b) = (t, step a b)
 
 efilter :: (a -> Bool) -> Event a -> Event a
-efilter cond = Event . fmap (filter cond) . runEvent
+efilter cond = Event . fmap (filter (cond . snd)) . runEvent
 
 emap :: (a -> b) -> Event a -> Event b
-emap func = Event . fmap (fmap func) . runEvent
+emap func =
+  Event . fmap (fmap f) . runEvent
+  where
+    f (t, x) = (t, func x)
 
 memoEvent :: Event a -> IO (Event a)
 memoEvent event = do
@@ -61,7 +68,8 @@ makeCallbackEvent = do
     return $ reverse queue
   let
     callback x = do
+      now <- getClockTime
       queue <- takeMVar queueVar
-      putMVar queueVar (x : queue)
+      putMVar queueVar ((now, x) : queue)
   return (event, callback)
 
