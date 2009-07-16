@@ -4,23 +4,23 @@ module FRP.Peakachu.Backend.GLUT (
   Image(..), glKeyboardMouseEvents, glutRun
   ) where
 
-import Control.Generator.Consumer (evalConsumerT, next, consumeRestM)
 import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
-import Control.Generator.Memo (memo)
-import Control.Generator.ProducerT (produce, yield)
-import Control.Monad (forever)
+import Control.Monad (when)
+import Control.Monad.Consumer (consumeRestM, evalConsumerT, next)
 import Control.Monad.Trans (liftIO)
 import Data.Function (fix)
+import Data.List.Class (joinM, repeat)
 import Data.Monoid (Monoid(..))
 import FRP.Peakachu.Internal (Event(..))
 import Graphics.UI.GLUT (
   ($=), ClearBuffer(..), Key(..), KeyState(..),
   Modifiers, Position,
   displayCallback, keyboardMouseCallback, idleCallback,
-  clear, flush, mainLoop)
-import System.Time (getClockTime)
+  clear, flush, mainLoop, leaveMainLoop)
+--import System.Time (getClockTime)
+import Prelude hiding (repeat)
 
-data Image = Image (IO ())
+data Image = Image { runImage :: IO ()}
 
 instance Monoid Image where
   mempty = Image $ return ()
@@ -32,34 +32,28 @@ glKeyboardMouseEvents = do
   let
     callback :: Key -> KeyState -> Modifiers -> Position -> IO ()
     callback (Char c) Down _ _ = do
-      t <- getClockTime
+      --t <- getClockTime
       queue <- takeMVar queueVar
-      putMVar queueVar $ queue ++ [(t, Just c)]
+      putMVar queueVar (c:queue) --queue ++ [(t, Just c)]
     callback _ _ _ _ = return ()
   keyboardMouseCallback $= Just callback
-  r <- memo . produce . forever $ do
-    queue <- liftIO $ takeMVar queueVar
-    case queue of
-      [] -> do
-        t <- liftIO getClockTime
-        liftIO $ putMVar queueVar []
-        yield (t, Nothing)
-      x : xs -> do
-        liftIO $ putMVar queueVar xs
-        yield x
-  return $ Event r
+  return . Event . joinM . repeat $ do
+    queue <- takeMVar queueVar
+    putMVar queueVar []
+    return $ reverse queue
 
 glutRun :: Event Image -> IO ()
 glutRun program = do
   (`evalConsumerT` runEvent program) . fix $ \rest -> do
-    Just mx <- next
-    case snd mx of
-      Nothing -> return ()
-      Just (Image image) -> liftIO $ do
-        clear [ ColorBuffer ]
-        image
-        flush
-    liftIO . (idleCallback $=) . Just =<< consumeRestM rest
+    mx <- next
+    case mx of
+      Nothing -> liftIO $ leaveMainLoop
+      Just items -> do
+        when (not (null items)) . liftIO $ do
+          clear [ ColorBuffer ]
+          runImage $ last items
+          flush
+        liftIO . (idleCallback $=) . Just =<< consumeRestM rest
   displayCallback $= return ()
   mainLoop
 
