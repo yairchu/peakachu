@@ -2,6 +2,7 @@
 
 module FRP.Peakachu.Backend.GLUT (
   Image(..), glutRun,
+  mouseMotionEvent,
   glKeyboardMouseEvent, glMotionEvent, glPassiveMotionEvent
   ) where
 
@@ -48,6 +49,9 @@ glPassiveMotionEvent =
     (event, callback) <- makeCallbackEvent
     passiveMotionCallback $= Just callback
     return event
+
+mouseMotionEvent :: Event Position
+mouseMotionEvent = mappend glMotionEvent glPassiveMotionEvent
 
 glutRun :: Event Image -> IO ()
 glutRun program = do

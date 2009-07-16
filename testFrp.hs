@@ -26,5 +26,5 @@ main = do
     post :: Int -> Image
     post 0 = redSquare
     post _ = greenSquare
-  glutRun . emap post $ escanl (const . (1 -)) 0 glMotionEvent
+  glutRun . emap post $ escanl (const . (1 -)) 0 mouseMotionEvent
 
