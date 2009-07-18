@@ -71,6 +71,7 @@ glutRun :: Event Image -> IO ()
 glutRun program = do
   _ <- getArgsAndInitialize
   createWindow "test"
+  windowSize $= Size 600 600
   (`evalConsumerT` runEvent program) . fix $ \rest -> do
     mx <- next
     case mx of
