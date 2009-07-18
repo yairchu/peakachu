@@ -1,7 +1,7 @@
 {-# OPTIONS -O2 -Wall #-}
 
 module FRP.Peakachu.Internal (
-  Time, Event(..), escanl, efilter, emap,
+  Time, Event(..), escanl, efilter, emap, empty,
   makeCallbackEvent, makePollStateEvent, memoEvent
   ) where
 
@@ -56,6 +56,9 @@ escanl step startVal src =
       runEvent src
   where
     vstep (_, a) (t, b) = (t, step a b)
+
+empty :: Event a
+empty = Event mempty
 
 efilter :: (a -> Bool) -> Event a -> Event a
 efilter cond = Event . fmap (filter (cond . snd)) . runEvent

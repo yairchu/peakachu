@@ -18,8 +18,49 @@ normalizeVec vec
   where
     norm = sqrt . sum $ map (^ 2) vec
 
-f :: (GLfloat, GLfloat) -> Image
-f (x, y) =
+data PieceType = Pawn | Rook | King
+
+type BoardPos = (Integer, Integer)
+
+data Piece = Piece {
+  pieceType :: PieceType,
+  piecePos :: BoardPos
+}
+
+data Board = Board {
+  boardPieces :: [Piece]
+}
+
+data PiecePix = PiecePix {
+  pixBody :: [[(GLfloat, GLfloat)]],
+  pixOutline :: [(GLfloat, GLfloat)]
+}
+
+piecePix :: PieceType -> PiecePix
+piecePix Rook = PiecePix {
+  pixBody =
+    [[(-1, -1), (1, -1), (1, t-1), (-1, t-1)]
+    ,[(t-1, t-1), (1-t, t-1), (1-t, 1-t), (t-1, 1-t)]
+    ,[(-1, 1), (1, 1), (1, 1-t), (-1, 1-t)]
+    ],
+  pixOutline =
+    [(1, t-1), (1, -1), (-1, -1), (-1, t-1)
+    ,(t-1, t-1), (t-1, 1-t)
+    ,(-1, 1-t), (-1, 1), (1, 1), (1, 1-t)
+    ,(1-t, 1-t), (1-t, t-1)
+    ]
+  }
+  where
+    t = 0.2
+
+pieceAt :: Board -> BoardPos -> Maybe Piece
+pieceAt board pos =
+  case filter ((== pos) . piecePos) (boardPieces board) of
+    [] -> Nothing
+    (x : _) -> Just x
+
+draw :: (Board, (GLfloat, GLfloat)) -> Image
+draw (board, (cx, cy)) =
   Image $ do
     cursor $= None
     blend $= Enabled
@@ -27,30 +68,56 @@ f (x, y) =
     lighting $= Enabled
     light (Light 0) $= Enabled
     position (Light 0) $= Vertex4 0 0 (-1) 0
-    chessBoard
+    cullFace $= Nothing
+    drawBoard
+    forM_ (boardPieces board) drawPiece
+    cullFace $= Just Front
     drawCursor
   where
-    chessBoard =
+    screenPos pa = (fromIntegral pa - 3.5) / 4
+    boardPos ca = round (4 * ca + 3.5)
+    bcx = boardPos cx
+    bcy = boardPos cy
+    headingUp = normal $ Normal3 0 0 (-1 :: GLfloat)
+    drawPiece piece = do
+      let
+        pix = piecePix (pieceType piece)
+        (px, py) = piecePos piece
+        sx = screenPos px
+        sy = screenPos py
+      materialDiffuse Front $= Color4 1 1 1 (1 :: GLfloat)
+      headingUp
+      forM (pixBody pix) $ \poly -> do
+        let
+          polyType
+            | 3 == length poly = Triangles
+            | otherwise = Quads
+        renderPrimitive polyType .
+          forM poly $ \(vx, vy) ->
+            vertex $ Vertex4
+              (sx + 0.125*pieceSize*vx)
+              (sy + 0.125*pieceSize*vy) 0 1
+    pieceSize = 0.9
+    drawBoard =
       forM_ [0..7] $ \bx ->
       forM_ [0..7] $ \by -> do
         let
           col = 0.2 + 0.1 * (fromIntegral ((bx + by) `mod` 2))
           r ba va = 0.125*((fromIntegral ba*2+va)-7)
         materialDiffuse Front $= Color4 col col col 1
-        normal $ Normal3 0 0 (-1 :: GLfloat)
+        headingUp
         renderPrimitive Quads .
-          forM vs $ \(vx, vy) ->
+          forM square $ \(vx, vy) ->
             vertex $ Vertex4 (r bx vx) (r by vy) 0 1
     drawCursor =
       renderPrimitive Triangles .
-      forM_ (zip vs (tail vs ++ [head vs])) $
+      forM_ (zip curPix (tail curPix ++ [head curPix])) $
       \((ax, ay), (bx, by)) -> do
         let
-          r v = (fromIntegral (round (4 * v + 0.5)) - 0.5) / 4
-          rx = r x
-          ry = r y
+          rx = screenPos bcx
+          ry = screenPos bcy
           points =
-            [[0.9*x, 0.9*y, 0.9]
+            [[0.9*cx, 0.9*cy, 0.9]
             ,[rx + 0.125*ax, ry + 0.125*ay, 1]
             ,[rx + 0.125*bx, ry + 0.125*by, 1]
             ]
@@ -65,8 +132,19 @@ f (x, y) =
         materialDiffuse Front $= Color4 1 1 0 0
         forM_ (tail points) $ \[px, py, pz] ->
           vertex $ Vertex4 px py 0 pz
-    vs = [((-1), (-1)), ((-1), 1), (1, 1), (1, (-1))]
+    curPix =
+      case pieceAt board (bcx, bcy) of
+        Nothing -> square
+        Just p -> map t . pixOutline . piecePix $ pieceType p
+      where
+        t (x, y) = (pieceSize*x, pieceSize*y)
+    square = [((-1), (-1)), ((-1), 1), (1, 1), (1, (-1))]
+
+chessStart :: Board
+chessStart = Board [Piece Rook (0, 0)]
 
 main :: IO ()
-main = glutRun $ emap f mouseMotionEvent
+main =
+  glutRun . emap draw $
+  ezip' (ereturn chessStart) mouseMotionEvent
 
