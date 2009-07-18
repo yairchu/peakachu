@@ -3,7 +3,7 @@
 module FRP.Peakachu.Backend.GLUT (
   Image(..), glutRun,
   mouseMotionEvent,
-  glKeyboardMouseEvent, glMotionEvent, glPassiveMotionEvent
+  glKeyboardMouseEvent, glMotionEvent, glPassiveMotionEvent,
   ) where
 
 import Control.Monad (unless)
@@ -16,8 +16,9 @@ import FRP.Peakachu (emap, ezip')
 import FRP.Peakachu.Internal (
   Event(..), makeCallbackEvent, makePollStateEvent)
 import Graphics.UI.GLUT (
-  ($=), ClearBuffer(..), Key(..), KeyState(..),
+  ($=), ($~), ClearBuffer(..), Key(..), KeyState(..),
   Modifiers, Position(..), GLfloat, Size(..),
+  DisplayMode(..), initialDisplayMode, swapBuffers,
   createWindow, getArgsAndInitialize,
   displayCallback, idleCallback, keyboardMouseCallback,
   motionCallback, passiveMotionCallback,
@@ -70,6 +71,7 @@ mouseMotionEvent =
 glutRun :: Event Image -> IO ()
 glutRun program = do
   _ <- getArgsAndInitialize
+  initialDisplayMode $~ (DoubleBuffered:)
   createWindow "test"
   windowSize $= Size 600 600
   (`evalConsumerT` runEvent program) . fix $ \rest -> do
@@ -80,8 +82,8 @@ glutRun program = do
         unless (null items) . liftIO $ do
           clear [ ColorBuffer ]
           runImage . snd $ last items
+          swapBuffers
           flush
         liftIO . (idleCallback $=) . Just =<< consumeRestM rest
   displayCallback $= return ()
   mainLoop
-
