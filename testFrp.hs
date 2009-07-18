@@ -33,22 +33,27 @@ data Board = Board {
 
 data PiecePix = PiecePix {
   pixBody :: [[(GLfloat, GLfloat)]],
-  pixOutline :: [(GLfloat, GLfloat)]
+  pixOutline :: [[(GLfloat, GLfloat)]]
 }
 
 piecePix :: PieceType -> PiecePix
+piecePix Pawn =
+  PiecePix r r
+  where
+    r = [[(-s, -s), (-s, s), (s, s), (s, -s)]]
+    s = 0.6
 piecePix Rook = PiecePix {
   pixBody =
     [[(-1, -1), (1, -1), (1, t-1), (-1, t-1)]
     ,[(t-1, t-1), (1-t, t-1), (1-t, 1-t), (t-1, 1-t)]
     ,[(-1, 1), (1, 1), (1, 1-t), (-1, 1-t)]
     ],
-  pixOutline =
+  pixOutline = [
     [(1, t-1), (1, -1), (-1, -1), (-1, t-1)
     ,(t-1, t-1), (t-1, 1-t)
     ,(-1, 1-t), (-1, 1), (1, 1), (1, 1-t)
     ,(1-t, 1-t), (1-t, t-1)
-    ]
+    ]]
   }
   where
     t = 0.35
@@ -58,14 +63,27 @@ piecePix Knight = PiecePix {
     ,[(0, 0), (1, 0), (1, -1), (-1, -1)]
     ],
   pixOutline =
-    [(-1, 0), (1, 1), (1, -1), (-1, -1), (0, 0)]
+    [[(-1, 0), (1, 1), (1, -1), (-1, -1), (0, 0)]]
   }
-piecePix Bishop = PiecePix {
-  pixBody = [outline],
-  pixOutline = outline
+piecePix Bishop =
+  PiecePix r r
+  where
+    r = [[(0, 1), (1, -1), (-1, -1)]]
+piecePix King = PiecePix {
+  pixBody = r ++
+    [[(-0.75, -0.75), (-0.75, -0.25), (0, -0.5), (0, -0.75)]
+    ,[(0.75, -0.75), (0.75, -0.25), (0, -0.5), (0, -0.75)]
+    ],
+  pixOutline = r ++ [
+    [(-0.75, -0.75), (-0.75, -0.25)
+    ,(0, -0.5)
+    ,(0.75, -0.25), (0.75, -0.75)]]
   }
   where
-    outline = [(0, 1), (1, -1), (-1, -1)]
+    r =
+      [[(-0.75, 0.5), (-0.5, 0.75), (-0.25, 0.5), (-0.5, 0.25)]
+      ,[(0.25, 0.5), (0.5, 0.75), (0.75, 0.5), (0.5, 0.25)]
+      ]
 
 pieceAt :: Board -> BoardPos -> Maybe Piece
 pieceAt board pos =
@@ -125,7 +143,8 @@ draw (board, (cx, cy)) =
             vertex $ Vertex4 (r bx vx) (r by vy) 0 1
     drawCursor =
       renderPrimitive Triangles .
-      forM_ (zip curPix (tail curPix ++ [head curPix])) $
+      forM_ curPix $ \part ->
+      forM_ (zip part (tail part ++ [head part])) $
       \((ax, ay), (bx, by)) -> do
         let
           rx = screenPos bcx
@@ -155,16 +174,16 @@ draw (board, (cx, cy)) =
     pieceUnderCursor = pieceAt board (bcx, bcy)
     curPix =
       case pieceUnderCursor of
-        Nothing -> square
-        Just p -> map t . pixOutline . piecePix $ pieceType p
+        Nothing -> [square]
+        Just p -> map (map t) . pixOutline . piecePix $ pieceType p
       where
         t (x, y) = (pieceSize*x, pieceSize*y)
     square = [((-1), (-1)), ((-1), 1), (1, 1), (1, (-1))]
 
 chessStart :: Board
-chessStart = Board [
-  Piece Rook (0, 0), Piece Knight (1, 0), Piece Bishop (2, 0)
-  ]
+chessStart = Board ([
+  Piece Rook (0, 0), Piece Knight (1, 0), Piece Bishop (2, 0), Piece King (3, 0)
+  ] ++ [Piece Pawn (x, 1) | x <- [0..7]])
 
 main :: IO ()
 main =
