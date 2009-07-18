@@ -43,32 +43,29 @@ piecePix Pawn =
     r = [[(-s, -s), (-s, s), (s, s), (s, -s)]]
     s = 0.6
 piecePix Rook = PiecePix {
-  pixBody =
-    [[(-1, -1), (1, -1), (1, t-1), (-1, t-1)]
-    ,[(t-1, t-1), (1-t, t-1), (1-t, 1-t), (t-1, 1-t)]
-    ,[(-1, 1), (1, 1), (1, 1-t), (-1, 1-t)]
-    ],
-  pixOutline = [
-    [(1, t-1), (1, -1), (-1, -1), (-1, t-1)
-    ,(t-1, t-1), (t-1, 1-t)
-    ,(-1, 1-t), (-1, 1), (1, 1), (1, 1-t)
-    ,(1-t, 1-t), (1-t, t-1)
-    ]]
+  pixBody = [thing, othing, [(-s, -s), (-s, s), (s, s), (s, -s)]],
+  pixOutline = [thing ++ othing]
   }
   where
-    t = 0.35
+    s = 0.5
+    thing = [(-s, s), (-1, 1), (1, 1), (s, s)]
+    othing = map r thing
+    r (x, y) = (-x, -y)
 piecePix Knight = PiecePix {
-  pixBody =
-    [[(-1, 0), (1, 1), (1, 0)]
-    ,[(0, 0), (1, 0), (1, -1), (-1, -1)]
-    ],
-  pixOutline =
-    [[(-1, 0), (1, 1), (1, -1), (-1, -1), (0, 0)]]
+  pixBody = [[a, b, f] ,[c, d, e, f]],
+  pixOutline = [outline]
   }
-piecePix Bishop =
-  PiecePix r r
   where
-    r = [[(0, 1), (1, -1), (-1, -1)]]
+    outline = [(-1, 0), (1, 1), (0.5, -1), (-1, -1), (0, 0)]
+    [a, b, c, d, e] = outline
+    f = (0.75, 0)
+piecePix Bishop = PiecePix {
+  pixBody = [[a, b, d], [b, c, d]],
+  pixOutline = [outline]
+  }
+  where
+    outline = [(-1, -1), (0, 1), (1, -1), (0, -0.5)]
+    [a, b, c, d] = outline
 piecePix King = PiecePix {
   pixBody = r ++
     [[(-0.75, -0.75), (-0.75, -0.25), (0, -0.5), (0, -0.75)]
@@ -84,6 +81,17 @@ piecePix King = PiecePix {
       [[(-0.75, 0.5), (-0.5, 0.75), (-0.25, 0.5), (-0.5, 0.25)]
       ,[(0.25, 0.5), (0.5, 0.75), (0.75, 0.5), (0.5, 0.25)]
       ]
+piecePix Queen = PiecePix {
+  pixBody =
+    [[(0, 1), (1, -1), (-1, -1)]
+    ,[(-0.5, 0), (-1, 1), (-0.25, 0.5)]
+    ,[(0.5, 0), (1, 1), (0.25, 0.5)]
+    ],
+  pixOutline = [
+    [(-1, 1), (-0.25, 0.5), (0, 1), (0.25, 0.5), (1, 1)
+    ,(0.5, 0), (1, -1), (-1, -1), (-0.5, 0)
+    ]]
+  }
 
 pieceAt :: Board -> BoardPos -> Maybe Piece
 pieceAt board pos =
@@ -181,9 +189,12 @@ draw (board, (cx, cy)) =
     square = [((-1), (-1)), ((-1), 1), (1, 1), (1, (-1))]
 
 chessStart :: Board
-chessStart = Board ([
-  Piece Rook (0, 0), Piece Knight (1, 0), Piece Bishop (2, 0), Piece King (3, 0)
-  ] ++ [Piece Pawn (x, 1) | x <- [0..7]])
+chessStart = Board (
+  concat (zipWith headRowItems [0..7] headRowTypes)
+  ++ [Piece Pawn (x, y) | x <- [0..7], y <- [1, 6]])
+  where
+    headRowTypes = [Rook, Knight, Bishop, King, Queen, Bishop, Knight, Rook]
+    headRowItems x t = [Piece t (x, 0), Piece t (x, 7)]
 
 main :: IO ()
 main =
