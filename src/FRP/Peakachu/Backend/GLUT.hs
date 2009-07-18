@@ -11,9 +11,10 @@ import Control.Monad.Consumer (consumeRestM, evalConsumerT, next)
 import Control.Monad.Trans (liftIO)
 import Data.Function (fix)
 import Data.Monoid (Monoid(..))
-import Data.List.Class (joinM)
 import Foreign (unsafePerformIO)
-import FRP.Peakachu.Internal (Event(..), makeCallbackEvent)
+import FRP.Peakachu (emap, ezip')
+import FRP.Peakachu.Internal (
+  Event(..), makeCallbackEvent, makePollStateEvent)
 import Graphics.UI.GLUT (
   ($=), ClearBuffer(..), Key(..), KeyState(..),
   Modifiers, Position(..), GLfloat, Size(..),
@@ -52,20 +53,19 @@ glPassiveMotionEvent =
     passiveMotionCallback $= Just callback
     return event
 
+windowSizeEvent :: Event Size
+windowSizeEvent =
+  unsafePerformIO .
+  makePollStateEvent $
+  get windowSize
+
 mouseMotionEvent :: Event (GLfloat, GLfloat)
 mouseMotionEvent =
-  Event . joinM . fmap f . runEvent $
+  emap f . ezip' windowSizeEvent $
   mappend glMotionEvent glPassiveMotionEvent
   where
-    f :: [(t, Position)] -> IO [(t, (GLfloat, GLfloat))]
-    f items = do
-      Size sx sy <- get windowSize
-      let
-        ff (when, Position px py) =
-          (when,
-           (2 * fromIntegral px / fromIntegral sx - 1
-           ,(-2) * fromIntegral py / fromIntegral sy + 1))
-      return $ fmap ff items
+    f ((Size sx sy), (Position px py)) = (r sx px, - r sy py)
+    r sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
 
 glutRun :: Event Image -> IO ()
 glutRun program = do

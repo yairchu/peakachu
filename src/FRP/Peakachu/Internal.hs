@@ -1,8 +1,8 @@
 {-# OPTIONS -O2 -Wall #-}
 
 module FRP.Peakachu.Internal (
-  {-Time,-} Event(..), escanl, efilter, emap,
-  makeCallbackEvent, memoEvent
+  Time, Event(..), escanl, efilter, emap,
+  makeCallbackEvent, makePollStateEvent, memoEvent
   ) where
 
 import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
@@ -95,4 +95,17 @@ makeCallbackEvent = do
       queue <- takeMVar queueVar
       putMVar queueVar ((now, x) : queue)
   return (event, callback)
+
+makePollStateEvent :: Eq a => IO a -> IO (Event a)
+makePollStateEvent poll =
+  memoEvent . Event . joinL $ do
+    x <- poll
+    now <- getClockTime
+    return . cons [(now, x)] $ go x
+  where
+    go prev =
+      joinL $ do
+        x <- poll
+        now <- getClockTime
+        return . cons [(now, x) | x /= prev] $ go x
 
