@@ -18,7 +18,7 @@ normalizeVec vec
   where
     norm = sqrt . sum $ map (^ 2) vec
 
-data PieceType = Pawn | Bishop | Rook | King
+data PieceType = Pawn | Knight | Bishop | Rook | Queen | King
 
 type BoardPos = (Integer, Integer)
 
@@ -52,6 +52,14 @@ piecePix Rook = PiecePix {
   }
   where
     t = 0.35
+piecePix Knight = PiecePix {
+  pixBody =
+    [[(-1, 0), (1, 1), (1, 0)]
+    ,[(0, 0), (1, 0), (1, -1), (-1, -1)]
+    ],
+  pixOutline =
+    [(-1, 0), (1, 1), (1, -1), (-1, -1), (0, 0)]
+  }
 piecePix Bishop = PiecePix {
   pixBody = [outline],
   pixOutline = outline
@@ -154,7 +162,9 @@ draw (board, (cx, cy)) =
     square = [((-1), (-1)), ((-1), 1), (1, 1), (1, (-1))]
 
 chessStart :: Board
-chessStart = Board [Piece Rook (0, 0), Piece Bishop (1, 0)]
+chessStart = Board [
+  Piece Rook (0, 0), Piece Knight (1, 0), Piece Bishop (2, 0)
+  ]
 
 main :: IO ()
 main =
