@@ -18,7 +18,7 @@ normalizeVec vec
   where
     norm = sqrt . sum $ map (^ 2) vec
 
-data PieceType = Pawn | Rook | King
+data PieceType = Pawn | Bishop | Rook | King
 
 type BoardPos = (Integer, Integer)
 
@@ -51,7 +51,13 @@ piecePix Rook = PiecePix {
     ]
   }
   where
-    t = 0.2
+    t = 0.35
+piecePix Bishop = PiecePix {
+  pixBody = [outline],
+  pixOutline = outline
+  }
+  where
+    outline = [(0, 1), (1, -1), (-1, -1)]
 
 pieceAt :: Board -> BoardPos -> Maybe Piece
 pieceAt board pos =
@@ -126,14 +132,21 @@ draw (board, (cx, cy)) =
             | last norml < 0 = norml
             | otherwise = map negate norml
         normal $ Normal3 nx ny nz
-        materialDiffuse Front $= Color4 1 1 0 1
+        materialDiffuse Front $=
+          case pieceUnderCursor of
+            Nothing -> Color4 1 1 0 1
+            otherwise -> Color4 0 1 0 1
         forM_ (take 1 points) $ \[px, py, pz] ->
           vertex $ Vertex4 px py 0 pz
-        materialDiffuse Front $= Color4 1 1 0 0
+        materialDiffuse Front $=
+          case pieceUnderCursor of
+            Nothing -> Color4 1 1 0 0
+            otherwise -> Color4 0 1 0 0.5
         forM_ (tail points) $ \[px, py, pz] ->
           vertex $ Vertex4 px py 0 pz
+    pieceUnderCursor = pieceAt board (bcx, bcy)
     curPix =
-      case pieceAt board (bcx, bcy) of
+      case pieceUnderCursor of
         Nothing -> square
         Just p -> map t . pixOutline . piecePix $ pieceType p
       where
@@ -141,7 +154,7 @@ draw (board, (cx, cy)) =
     square = [((-1), (-1)), ((-1), 1), (1, 1), (1, (-1))]
 
 chessStart :: Board
-chessStart = Board [Piece Rook (0, 0)]
+chessStart = Board [Piece Rook (0, 0), Piece Bishop (1, 0)]
 
 main :: IO ()
 main =
