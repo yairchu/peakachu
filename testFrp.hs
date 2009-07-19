@@ -52,13 +52,12 @@ piecePix Rook = PiecePix {
     othing = map r thing
     r (x, y) = (-x, -y)
 piecePix Knight = PiecePix {
-  pixBody = [[a, b, f] ,[c, d, e, f]],
+  pixBody = [[a, b, e] ,[b, c, d]],
   pixOutline = [outline]
   }
   where
     outline = [(-1, 0), (1, 1), (0.5, -1), (-1, -1), (0, 0)]
     [a, b, c, d, e] = outline
-    f = (0.75, 0)
 piecePix Bishop = PiecePix {
   pixBody = [[a, b, d], [b, c, d]],
   pixOutline = [outline]
@@ -67,31 +66,27 @@ piecePix Bishop = PiecePix {
     outline = [(-1, -1), (0, 1), (1, -1), (0, -0.5)]
     [a, b, c, d] = outline
 piecePix King = PiecePix {
-  pixBody = r ++
-    [[(-0.75, -0.75), (-0.75, -0.25), (0, -0.5), (0, -0.75)]
-    ,[(0.75, -0.75), (0.75, -0.25), (0, -0.5), (0, -0.75)]
-    ],
-  pixOutline = r ++ [
-    [(-0.75, -0.75), (-0.75, -0.25)
-    ,(0, -0.5)
-    ,(0.75, -0.25), (0.75, -0.75)]]
+  pixBody = [leye, reye, [a, b, e], [c, d, e]],
+  pixOutline = [leye, reye, mouthline]
   }
   where
-    r =
-      [[(-0.75, 0.5), (-0.5, 0.75), (-0.25, 0.5), (-0.5, 0.25)]
-      ,[(0.25, 0.5), (0.5, 0.75), (0.75, 0.5), (0.5, 0.25)]
-      ]
+    reye = [(0.25, 0.5), (0.5, 0.75), (0.75, 0.5), (0.5, 0.25)]
+    leye = map m reye
+    m (x, y) = (-x, y)
+    mouthline =
+      [(-0.75, -0.75), (-0.75, -0.25)
+      ,(0, -0.5)
+      ,(0.75, -0.25), (0.75, -0.75)]
+    [a, b, c, d, e] = mouthline
 piecePix Queen = PiecePix {
-  pixBody =
-    [[(0, 1), (1, -1), (-1, -1)]
-    ,[(-0.5, 0), (-1, 1), (-0.25, 0.5)]
-    ,[(0.5, 0), (1, 1), (0.25, 0.5)]
-    ],
-  pixOutline = [
-    [(-1, 1), (-0.25, 0.5), (0, 1), (0.25, 0.5), (1, 1)
-    ,(0.5, 0), (1, -1), (-1, -1), (-0.5, 0)
-    ]]
+  pixBody = [[c, g, h], [a, b, i], [d, e, f]],
+  pixOutline = [outline]
   }
+  where
+    outline =
+      [(-1, 1), (-0.25, 0.5), (0, 1), (0.25, 0.5), (1, 1)
+      ,(0.5, 0), (1, -1), (-1, -1), (-0.5, 0)]
+    [a, b, c, d, e, f, g, h, i] = outline
 
 pieceAt :: Board -> BoardPos -> Maybe Piece
 pieceAt board pos =
