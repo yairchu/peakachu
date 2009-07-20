@@ -1,5 +1,7 @@
-import Control.Monad
+import Control.Monad (forM)
+import Data.Foldable (forM_)
 import Data.List
+import Data.Monoid
 import FRP.Peakachu
 import FRP.Peakachu.Backend.GLUT
 import Graphics.UI.GLUT
@@ -69,7 +71,7 @@ piecePix Bishop = PiecePix {
     [a, b, c, d] = outline
 piecePix King = PiecePix {
   pixBody = [leye, reye, [a, b, e], [c, d, e]],
-  pixOutline = [leye, reye, mouthline]
+  pixOutline = [reverse leye, reye, mouthline]
   }
   where
     reye = [(0.25, 0.5), (0.5, 0.75), (0.75, 0.5), (0.5, 0.25)]
@@ -96,11 +98,22 @@ pieceAt board pos =
     [] -> Nothing
     (x : _) -> Just x
 
-screen2board :: GLfloat -> Integer
-screen2board ca = round (4 * ca + 3.5)
+screen2board :: DrawPos -> BoardPos
+screen2board (cx, cy) =
+  (r cx, r cy)
+  where
+    r ca = round (4 * ca + 3.5)
 
-draw :: (Board, (BoardPos, DrawPos)) -> Image
-draw (board, ((bcx, bcy), (cx, cy))) =
+board2screen :: BoardPos -> DrawPos
+board2screen (bx, by) =
+  (r bx, r by)
+  where
+    r ba = (fromIntegral ba - 3.5) / 4
+
+type Selection = (BoardPos, Maybe BoardPos)
+
+draw :: (Board, (Selection, DrawPos)) -> Image
+draw (board, ((dragSrc, dragDst), (cx, cy))) =
   Image $ do
     cursor $= None
     blend $= Enabled
@@ -112,16 +125,15 @@ draw (board, ((bcx, bcy), (cx, cy))) =
     drawBoard
     forM_ (boardPieces board) drawPiece
     cullFace $= Just Front
-    drawCursor
+    drawCursor dragSrc
+    forM_ dragDst drawCursor
   where
-    screenPos pa = (fromIntegral pa - 3.5) / 4
     headingUp = normal $ Normal3 0 0 (-1 :: GLfloat)
     drawPiece piece = do
       let
         pix = piecePix (pieceType piece)
         (px, py) = piecePos piece
-        sx = screenPos px
-        sy = screenPos py
+        (sx, sy) = board2screen (px, py)
       materialDiffuse Front $= Color4 1 1 1 (1 :: GLfloat)
       headingUp
       forM (pixBody pix) $ \poly -> do
@@ -146,14 +158,13 @@ draw (board, ((bcx, bcy), (cx, cy))) =
         renderPrimitive Quads .
           forM square $ \(vx, vy) ->
             vertex $ Vertex4 (r bx vx) (r by vy) 0 1
-    drawCursor =
+    drawCursor boardPos =
       renderPrimitive Triangles .
       forM_ curPix $ \part ->
       forM_ (zip part (tail part ++ [head part])) $
       \((ax, ay), (bx, by)) -> do
         let
-          rx = screenPos bcx
-          ry = screenPos bcy
+          (rx, ry) = board2screen boardPos
           points =
             [[0.9*cx, 0.9*cy, 0.9]
             ,[rx + 0.125*ax, ry + 0.125*ay, 1]
@@ -176,7 +187,7 @@ draw (board, ((bcx, bcy), (cx, cy))) =
             otherwise -> Color4 0 1 0 0.5
         forM_ (tail points) $ \[px, py, pz] ->
           vertex $ Vertex4 px py 0 pz
-    pieceUnderCursor = pieceAt board (bcx, bcy)
+    pieceUnderCursor = pieceAt board dragSrc
     curPix =
       case pieceUnderCursor of
         Nothing -> [square]
@@ -193,11 +204,31 @@ chessStart = Board (
     headRowTypes = [Rook, Knight, Bishop, King, Queen, Bishop, Knight, Rook]
     headRowItems x t = [Piece t (x, 0), Piece t (x, 7)]
 
+leftMouseButton :: Event KeyState
+leftMouseButton =
+  mappend (ereturn Up) .
+  emap m $
+  efilter f glKeyboardMouseEvent
+  where
+    m (_, state, _, _) = state
+    f (MouseButton LeftButton, _, _, _) = True
+    f _ = False
+
 main :: IO ()
 main =
   glutRun . emap draw . ezip' board $ ezip' selection mouseMotionEvent
   where
     board = ereturn chessStart
-    selection = emap selectedTile mouseMotionEvent
-    selectedTile (cx, cy) = (screen2board cx, screen2board cy)
+    selection =
+      emap snd .
+      escanl drag (Up, ((0, 0), Nothing)) $
+      ezip' leftMouseButton mouseMotionEvent
+    drag (Down, (x, _)) (Down, c) = (Down, (x, Just (screen2board c)))
+    drag _ (s, c) =
+      (s, (spos, dst))
+      where
+        spos = screen2board c
+        dst
+          | s == Up = Nothing
+          | otherwise = Just spos
 
