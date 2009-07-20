@@ -2,7 +2,7 @@
 
 module FRP.Peakachu (
   Event, escanl, efilter, emap, empty,
-  ereturn, ezip, ezip'
+  edrop, ereturn, ezip, ezip'
   ) where
 
 import FRP.Peakachu.Internal (
@@ -28,3 +28,10 @@ ezip' as bs =
 ereturn :: a -> Event a
 ereturn x = escanl (const id) x empty
 
+edrop :: Integral i => i -> Event a -> Event a
+edrop count =
+  emap snd .
+  efilter ((> count) . fst) .
+  escanl step (0, undefined)
+  where
+    step (i, _) x = (i+1, x)

@@ -204,14 +204,14 @@ chessStart = Board (
     headRowTypes = [Rook, Knight, Bishop, King, Queen, Bishop, Knight, Rook]
     headRowItems x t = [Piece t (x, 0), Piece t (x, 7)]
 
-leftMouseButton :: Event KeyState
-leftMouseButton =
+keyState :: Key -> Event KeyState
+keyState key =
   mappend (ereturn Up) .
   emap m $
   efilter f glKeyboardMouseEvent
   where
     m (_, state, _, _) = state
-    f (MouseButton LeftButton, _, _, _) = True
+    f (key, _, _, _) = True
     f _ = False
 
 main :: IO ()
@@ -221,8 +221,9 @@ main =
     board = ereturn chessStart
     selection =
       emap snd .
-      escanl drag (Up, ((0, 0), Nothing)) $
-      ezip' leftMouseButton mouseMotionEvent
+      edrop 1 .
+      escanl drag (Up, undefined) $
+      ezip' (keyState (MouseButton LeftButton)) mouseMotionEvent
     drag (Down, (x, _)) (Down, c) = (Down, (x, Just (screen2board c)))
     drag _ (s, c) =
       (s, (spos, dst))
