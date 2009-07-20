@@ -124,7 +124,6 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
     cullFace $= Nothing
     drawBoard
     forM_ (boardPieces board) drawPiece
-    cullFace $= Just Front
     drawCursor dragSrc
     forM_ dragDst drawCursor
   where
@@ -158,7 +157,12 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
         renderPrimitive Quads .
           forM square $ \(vx, vy) ->
             vertex $ Vertex4 (r bx vx) (r by vy) 0 1
-    drawCursor boardPos =
+    drawCursor boardPos = do
+      cullFace $= Just Back
+      drawCursor' boardPos
+      cullFace $= Just Front
+      drawCursor' boardPos
+    drawCursor' boardPos =
       renderPrimitive Triangles .
       forM_ curPix $ \part ->
       forM_ (zip part (tail part ++ [head part])) $
@@ -225,7 +229,13 @@ main :: IO ()
 main =
   glutRun . fmap draw . ezip' board $ ezip' selection mouseMotionEvent
   where
-    board = ereturn chessStart
+    board = escanl doMove chessStart moves
+    doMove board (src, dst) =
+      Board . map m $ boardPieces board
+      where
+        m piece
+          | piecePos piece /= src = piece
+          | otherwise = piece { piecePos = dst }
     selection =
       fmap snd .
       edrop 1 .
@@ -239,4 +249,12 @@ main =
         dst
           | s == Up = Nothing
           | otherwise = Just spos
+    moves =
+      fmap (moveProc . fst) $
+      efilter moveFilter $
+      ezip' (delayEvent 1 selection) selection
+    moveProc (a, Just b) = (a, b)
+    moveProc _ = undefined
+    moveFilter ((_, Just _), (_, Nothing)) = True
+    moveFilter _ = False
 

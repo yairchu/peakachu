@@ -81,7 +81,13 @@ memoEvent event = do
           rest <- memoEvent $ Event xs
           putMVar var . Just . runEvent $ prependItems x rest
           return . cons x $ runEvent rest
-  return . Event . joinL $ takeMVar var >>= maybe firstRun return
+  return . Event . joinL $ do
+    mx <- takeMVar var
+    case mx of
+      Nothing -> firstRun
+      Just x -> do
+        putMVar var mx
+        return x
 
 makeCallbackEvent :: IO (Event a, a -> IO ())
 makeCallbackEvent = do
