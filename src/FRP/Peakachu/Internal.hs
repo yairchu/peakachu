@@ -1,7 +1,7 @@
 {-# OPTIONS -O2 -Wall #-}
 
 module FRP.Peakachu.Internal (
-  Time, Event(..), escanl, efilter, emap, empty,
+  Time, Event(..), escanl, efilter,
   makeCallbackEvent, makePollStateEvent, memoEvent
   ) where
 
@@ -17,6 +17,12 @@ import Prelude hiding (repeat, scanl)
 type Time = ClockTime
 
 newtype Event a = Event { runEvent :: ListT IO [(Time, a)] }
+
+instance Functor Event where
+  fmap func =
+    Event . fmap (fmap f) . runEvent
+    where
+      f (t, x) = (t, func x)
 
 instance Monoid (Event a) where
   mempty = Event mempty
@@ -58,17 +64,8 @@ escanl step startVal src =
   where
     vstep (_, a) (t, b) = (t, step a b)
 
-empty :: Event a
-empty = Event mempty
-
 efilter :: (a -> Bool) -> Event a -> Event a
 efilter cond = Event . fmap (filter (cond . snd)) . runEvent
-
-emap :: (a -> b) -> Event a -> Event b
-emap func =
-  Event . fmap (fmap f) . runEvent
-  where
-    f (t, x) = (t, func x)
 
 memoEvent :: Event a -> IO (Event a)
 memoEvent event = do

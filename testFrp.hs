@@ -207,20 +207,27 @@ chessStart = Board (
 keyState :: Key -> Event KeyState
 keyState key =
   mappend (ereturn Up) .
-  emap m $
+  fmap m $
   efilter f glKeyboardMouseEvent
   where
     m (_, state, _, _) = state
-    f (key, _, _, _) = True
-    f _ = False
+    f (k, _, _, _) = k == key
+
+delayEvent :: Integral i => i -> Event a -> Event a
+delayEvent count =
+  fmap last .
+  edrop count .
+  escanl step []
+  where
+    step xs x = genericTake count $ x : xs
 
 main :: IO ()
 main =
-  glutRun . emap draw . ezip' board $ ezip' selection mouseMotionEvent
+  glutRun . fmap draw . ezip' board $ ezip' selection mouseMotionEvent
   where
     board = ereturn chessStart
     selection =
-      emap snd .
+      fmap snd .
       edrop 1 .
       escanl drag (Up, undefined) $
       ezip' (keyState (MouseButton LeftButton)) mouseMotionEvent

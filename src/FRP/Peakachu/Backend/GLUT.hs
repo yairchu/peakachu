@@ -12,7 +12,7 @@ import Control.Monad.Trans (liftIO)
 import Data.Function (fix)
 import Data.Monoid (Monoid(..))
 import Foreign (unsafePerformIO)
-import FRP.Peakachu (emap, ereturn, ezip')
+import FRP.Peakachu (ereturn, ezip')
 import FRP.Peakachu.Internal (
   Event(..), makeCallbackEvent, makePollStateEvent)
 import Graphics.UI.GLUT (
@@ -63,7 +63,7 @@ windowSizeEvent =
 mouseMotionEvent :: Event (GLfloat, GLfloat)
 mouseMotionEvent =
   mappend (ereturn (0, 0)) .
-  emap f .
+  fmap f .
   ezip' windowSizeEvent $
   mappend glMotionEvent glPassiveMotionEvent
   where

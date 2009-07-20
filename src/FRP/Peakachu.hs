@@ -1,24 +1,23 @@
 {-# OPTIONS -O2 -Wall #-}
 
 module FRP.Peakachu (
-  Event, escanl, efilter, emap, empty,
+  Event, escanl, efilter,
   edrop, ereturn, ezip, ezip'
   ) where
 
-import FRP.Peakachu.Internal (
-  Event, escanl, efilter, emap, empty)
-import Data.Monoid (mappend)
+import FRP.Peakachu.Internal (Event, escanl, efilter)
+import Data.Monoid (mappend, mempty)
 
 ezip :: Event a -> Event b -> Event (Maybe a, Maybe b)
 ezip as bs =
-  escanl step (Nothing, Nothing) $ emap Left as `mappend` emap Right bs
+  escanl step (Nothing, Nothing) $ fmap Left as `mappend` fmap Right bs
   where
     step (_, r) (Left l) = (Just l, r)
     step (l, _) (Right r) = (l, Just r)
 
 ezip' :: Event a -> Event b -> Event (a, b)
 ezip' as bs =
-  emap m . efilter f $ ezip as bs
+  fmap m . efilter f $ ezip as bs
   where
     f (Just _, Just _) = True
     f _ = False
@@ -26,11 +25,11 @@ ezip' as bs =
     m _ = undefined
 
 ereturn :: a -> Event a
-ereturn x = escanl (const id) x empty
+ereturn x = escanl (const id) x mempty
 
 edrop :: Integral i => i -> Event a -> Event a
 edrop count =
-  emap snd .
+  fmap snd .
   efilter ((> count) . fst) .
   escanl step (0, undefined)
   where
