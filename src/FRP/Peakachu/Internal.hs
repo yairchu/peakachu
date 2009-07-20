@@ -52,6 +52,7 @@ escanl step startVal src =
     let startItems = [(now, startVal)]
     return . runEvent .
       prependItems startItems . Event .
+      fmap tail .
       scanl (scanl vstep . last) startItems $
       runEvent src
   where

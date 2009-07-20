@@ -12,7 +12,7 @@ import Control.Monad.Trans (liftIO)
 import Data.Function (fix)
 import Data.Monoid (Monoid(..))
 import Foreign (unsafePerformIO)
-import FRP.Peakachu (emap, ezip')
+import FRP.Peakachu (emap, ereturn, ezip')
 import FRP.Peakachu.Internal (
   Event(..), makeCallbackEvent, makePollStateEvent)
 import Graphics.UI.GLUT (
@@ -62,7 +62,9 @@ windowSizeEvent =
 
 mouseMotionEvent :: Event (GLfloat, GLfloat)
 mouseMotionEvent =
-  emap f . ezip' windowSizeEvent $
+  mappend (ereturn (0, 0)) .
+  emap f .
+  ezip' windowSizeEvent $
   mappend glMotionEvent glPassiveMotionEvent
   where
     f ((Size sx sy), (Position px py)) = (r sx px, - r sy py)
@@ -87,3 +89,4 @@ glutRun program = do
         liftIO . (idleCallback $=) . Just =<< consumeRestM rest
   displayCallback $= return ()
   mainLoop
+

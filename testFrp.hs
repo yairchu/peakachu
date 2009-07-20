@@ -31,9 +31,11 @@ data Board = Board {
   boardPieces :: [Piece]
 }
 
+type DrawPos = (GLfloat, GLfloat)
+
 data PiecePix = PiecePix {
-  pixBody :: [[(GLfloat, GLfloat)]],
-  pixOutline :: [[(GLfloat, GLfloat)]]
+  pixBody :: [[DrawPos]],
+  pixOutline :: [[DrawPos]]
 }
 
 piecePix :: PieceType -> PiecePix
@@ -79,14 +81,14 @@ piecePix King = PiecePix {
       ,(0.75, -0.25), (0.75, -0.75)]
     [a, b, c, d, e] = mouthline
 piecePix Queen = PiecePix {
-  pixBody = [[c, g, h], [a, b, i], [d, e, f]],
+  pixBody = [[a, b, j], [d, e, f], [c, h, i], [c, g, h]],
   pixOutline = [outline]
   }
   where
     outline =
       [(-1, 1), (-0.25, 0.5), (0, 1), (0.25, 0.5), (1, 1)
-      ,(0.5, 0), (1, -1), (-1, -1), (-0.5, 0)]
-    [a, b, c, d, e, f, g, h, i] = outline
+      ,(0.5, 0), (1, -1), (0, -0.5), (-1, -1), (-0.5, 0)]
+    [a, b, c, d, e, f, g, h, i, j] = outline
 
 pieceAt :: Board -> BoardPos -> Maybe Piece
 pieceAt board pos =
@@ -94,8 +96,11 @@ pieceAt board pos =
     [] -> Nothing
     (x : _) -> Just x
 
-draw :: (Board, (GLfloat, GLfloat)) -> Image
-draw (board, (cx, cy)) =
+screen2board :: GLfloat -> Integer
+screen2board ca = round (4 * ca + 3.5)
+
+draw :: (Board, (BoardPos, DrawPos)) -> Image
+draw (board, ((bcx, bcy), (cx, cy))) =
   Image $ do
     cursor $= None
     blend $= Enabled
@@ -110,9 +115,6 @@ draw (board, (cx, cy)) =
     drawCursor
   where
     screenPos pa = (fromIntegral pa - 3.5) / 4
-    boardPos ca = round (4 * ca + 3.5)
-    bcx = boardPos cx
-    bcy = boardPos cy
     headingUp = normal $ Normal3 0 0 (-1 :: GLfloat)
     drawPiece piece = do
       let
@@ -193,6 +195,9 @@ chessStart = Board (
 
 main :: IO ()
 main =
-  glutRun . emap draw $
-  ezip' (ereturn chessStart) mouseMotionEvent
+  glutRun . emap draw . ezip' board $ ezip' selection mouseMotionEvent
+  where
+    board = ereturn chessStart
+    selection = emap selectedTile mouseMotionEvent
+    selectedTile (cx, cy) = (screen2board cx, screen2board cy)
 
