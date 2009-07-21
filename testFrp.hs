@@ -24,7 +24,11 @@ data PieceType = Pawn | Knight | Bishop | Rook | Queen | King
 
 type BoardPos = (Integer, Integer)
 
+data PieceSide = Black | White
+  deriving Eq
+
 data Piece = Piece {
+  pieceSide :: PieceSide,
   pieceType :: PieceType,
   piecePos :: BoardPos
 }
@@ -133,7 +137,11 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
         pix = piecePix (pieceType piece)
         (px, py) = piecePos piece
         (sx, sy) = board2screen (px, py)
-      materialDiffuse Front $= Color4 1 1 1 (1 :: GLfloat)
+        col :: Color4 GLfloat
+        col
+          | pieceSide piece == White = Color4 1 1 1 1
+          | otherwise = Color4 0 0.1 1 1
+      materialDiffuse Front $= col
       headingUp
       forM (pixBody pix) $ \poly -> do
         let
@@ -203,10 +211,11 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
 chessStart :: Board
 chessStart = Board (
   concat (zipWith headRowItems [0..7] headRowTypes)
-  ++ [Piece Pawn (x, y) | x <- [0..7], y <- [1, 6]])
+  ++ [Piece side Pawn (x, y) |
+  x <- [0..7], (side, y) <- [(White, 1), (Black, 6)]])
   where
     headRowTypes = [Rook, Knight, Bishop, King, Queen, Bishop, Knight, Rook]
-    headRowItems x t = [Piece t (x, 0), Piece t (x, 7)]
+    headRowItems x t = [Piece White t (x, 0), Piece Black t (x, 7)]
 
 keyState :: Key -> Event KeyState
 keyState key =
