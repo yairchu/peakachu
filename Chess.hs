@@ -69,8 +69,8 @@ takeUntilIncluding func (x : xs)
 null :: Foldable t => t a -> Bool
 null = all (const False)
 
-possibleMoves :: Piece -> Board -> [(BoardPos, Board)]
-possibleMoves piece board =
+possibleMoves :: Board -> Piece -> [(BoardPos, Board)]
+possibleMoves board piece =
   simpleMoves ++ otherMoves (pieceType piece)
   where
     simpleMoves = do

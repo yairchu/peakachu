@@ -2,14 +2,14 @@ import Chess
 import ChessFont
 
 import Control.Monad (forM)
-import Data.Foldable (forM_, toList)
+import Data.Foldable (any, forM_, toList)
 import Data.List.Class (filter, genericTake)
 import Data.Monoid
 import FRP.Peakachu
 import FRP.Peakachu.Backend.GLUT
 import Graphics.UI.GLUT
 
-import Prelude hiding (filter)
+import Prelude hiding (any, filter)
 
 faceNormal :: (Floating a, Ord a) => [[a]] -> [a]
 faceNormal points =
@@ -87,11 +87,8 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
     drawBoard
     forM_ (boardPieces board) drawPiece
     drawCursor dragSrc
-    forM_ (filter (`elem` possibDsts) dragDst) drawCursor
+    forM_ dragDst drawCursor
   where
-    possibDsts = do
-      piece <- toList pieceUnderCursor
-      map fst $ possibleMoves piece board
     headingUp = normal $ Normal3 0 0 (-1 :: GLfloat)
     drawPiece piece = do
       let
@@ -216,7 +213,12 @@ main = do
       edrop 1 .
       escanl drag (Up, undefined) $
       ezip' (keyState (MouseButton LeftButton)) mouseMotionEvent
-    drag (Down, (x, _)) (Down, c) = (Down, (x, Just (screen2board c)))
+    drag (Down, (x, _)) (Down, c) =
+      (Down, (x, filter isGoodMove (Just (screen2board c))))
+      where
+        isGoodMove dst =
+          any (any ((== dst) . fst) . possibleMoves chessStart) $
+          pieceAt chessStart x
     drag _ (s, c) =
       (s, (spos, dst))
       where
