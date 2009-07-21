@@ -37,12 +37,47 @@ board2screen (bx, by) =
   where
     r ba = (fromIntegral ba - 3.5) / 4
 
+tailRot :: [a] -> [a]
+tailRot [] = []
+tailRot (x : xs) = xs ++ [x]
+
+outlineSegments :: [a] -> [(a, a)]
+outlineSegments xs = zip xs (tailRot xs)
+
+expandOutline :: GLfloat -> [DrawPos] -> [DrawPos]
+expandOutline ammount outline =
+  last t : init t
+  where
+    t = map intersection $ outlineSegments segments
+    intersection
+      (a@((xa0, ya0), (xa1, ya1))
+      ,b@((xb0, yb0), (xb1, yb1)))
+      | xa0 == xa1 =
+        (xa0, yb0 + (xa0-xb0) * (yb1-yb0) / (xb1-xb0))
+      | xb0 == xb1 = intersection (b, a)
+      | otherwise =
+        (x, yAt0 a + x * d a)
+      where
+        x = (yAt0 a - yAt0 b) / (d b - d a)
+    d ((x0, y0), (x1, y1)) = (y1-y0)/(x1-x0)
+    yAt0 s@((x0, y0), _) = y0 - x0 * d s
+    segments = map expandSegment $ outlineSegments outline
+    expandSegment ((ax, ay), (bx, by)) =
+      ((ax + ammount * nx, ay + ammount * ny)
+      ,(bx + ammount * nx, by + ammount * ny))
+      where
+        [nx, ny] = normalizeVec [ay - by, bx - ax]
+
 type Selection = (BoardPos, Maybe BoardPos)
 
 draw :: (Board, (Selection, DrawPos)) -> Image
 draw (board, ((dragSrc, dragDst), (cx, cy))) =
   Image $ do
     cursor $= None
+    lineSmooth $= Enabled
+    polygonSmooth $= Enabled
+    hint LineSmooth $= Nicest
+    hint PolygonSmooth $= Nicest
     blend $= Enabled
     blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
     lighting $= Enabled
@@ -63,22 +98,31 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
         pix = piecePix (pieceType piece)
         (px, py) = piecePos piece
         (sx, sy) = board2screen (px, py)
-        col :: Color4 GLfloat
-        col
-          | pieceSide piece == White = Color4 1 1 1 1
-          | otherwise = Color4 0 0.1 1 1
-      materialDiffuse Front $= col
+        white :: Color4 GLfloat
+        white = Color4 1 1 1 1
+        black = Color4 0 0 0 1
+        (bodyCol, outlineCol)
+          | pieceSide piece == White = (white, black)
+          | otherwise = (black, white)
+        vert m (vx, vy) =
+          vertex $ Vertex4
+            (sx + m*vx)
+            (sy + m*vy) 0 1
       headingUp
+      materialDiffuse Front $= bodyCol
       forM (pixBody pix) $ \poly -> do
         let
           polyType
             | 3 == length poly = Triangles
             | otherwise = Quads
-        renderPrimitive polyType .
-          forM poly $ \(vx, vy) ->
-            vertex $ Vertex4
-              (sx + 0.125*pieceSize*vx)
-              (sy + 0.125*pieceSize*vy) 0 1
+        renderPrimitive polyType . forM poly . vert $ pieceSize * 0.125
+      materialDiffuse Front $= outlineCol
+      renderPrimitive Quads .
+        forM (pixOutline pix) $ \outline -> do
+        forM (outlineSegments 
+          (zip outline (expandOutline (-0.06) outline))) $
+          \((a, b), (d, c)) ->
+          forM [a, b, c, d] . vert $ pieceSize * 0.125
     pieceSize = 0.9
     drawBoard =
       forM_ [0..7] $ \bx ->
@@ -99,7 +143,7 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
     drawCursor' boardPos =
       renderPrimitive Triangles .
       forM_ curPix $ \part ->
-      forM_ (zip part (tail part ++ [head part])) $
+      forM_ (outlineSegments part) $
       \((ax, ay), (bx, by)) -> do
         let
           (rx, ry) = board2screen boardPos
@@ -115,7 +159,7 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
         normal $ Normal3 nx ny nz
         materialDiffuse Front $=
           case pieceUnderCursor of
-            Nothing -> Color4 1 1 0 1
+            Nothing -> Color4 1 1 0 0.5
             otherwise -> Color4 0 1 0 1
         forM_ (take 1 points) $ \[px, py, pz] ->
           vertex $ Vertex4 px py 0 pz
@@ -152,12 +196,17 @@ delayEvent count =
     step xs x = genericTake count $ x : xs
 
 main :: IO ()
-main =
+main = do
+  initialWindowSize $= Size 600 600
+  initialDisplayCapabilities $=
+    [With DisplayRGB
+    ,Where DisplaySamples IsAtLeast 2
+    ]
   glutRun . fmap draw . ezip' board $ ezip' selection mouseMotionEvent
   where
     board = escanl doMove chessStart moves
     doMove board (src, dst) =
-      Board . map m $ boardPieces board
+      Board (map m (boardPieces board)) Nothing
       where
         m piece
           | piecePos piece /= src = piece

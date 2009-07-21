@@ -75,7 +75,6 @@ glutRun program = do
   _ <- getArgsAndInitialize
   initialDisplayMode $~ (DoubleBuffered:)
   createWindow "test"
-  windowSize $= Size 600 600
   (`evalConsumerT` runEvent program) . fix $ \rest -> do
     mx <- next
     case mx of

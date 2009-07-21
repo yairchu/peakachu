@@ -18,14 +18,19 @@ data Piece = Piece {
 }
 
 data Board = Board {
-  boardPieces :: [Piece]
+  boardPieces :: [Piece],
+  boardLastMove :: Maybe (Piece, BoardPos)
 }
 
 chessStart :: Board
-chessStart = Board (
-  concat (zipWith headRowItems [0..7] headRowTypes)
-  ++ [Piece side Pawn (x, y) |
-  x <- [0..7], (side, y) <- [(White, 1), (Black, 6)]])
+chessStart =
+  Board {
+    boardPieces =
+      concat (zipWith headRowItems [0..7] headRowTypes) ++
+      [Piece side Pawn (x, y) |
+      x <- [0..7], (side, y) <- [(White, 1), (Black, 6)]],
+    boardLastMove = Nothing
+  }
   where
     headRowTypes = [Rook, Knight, Bishop, King, Queen, Bishop, Knight, Rook]
     headRowItems x t = [Piece White t (x, 0), Piece Black t (x, 7)]
@@ -79,9 +84,13 @@ possibleMoves piece board =
       (dst, newBoard)
       where
         newBoard =
-          Board $
-          piece { piecePos = dst } :
-          filter ((/= dst) . piecePos) (boardPieces board)
+          Board {
+            boardPieces =
+              newPieceState :
+              filter ((/= dst) . piecePos) (boardPieces board),
+            boardLastMove = Just (newPieceState, piecePos piece)
+          }
+        newPieceState = piece { piecePos = dst }
     inBoard (x, y) = 0 <= x && x < 8 && 0 <= y && y < 8
     isOtherSide = (/= pieceSide piece) . pieceSide
     notBlocked pos =
