@@ -199,7 +199,10 @@ main = do
     [With DisplayRGB
     ,Where DisplaySamples IsAtLeast 2
     ]
-  glutRun . fmap draw . ezip' board $ ezip' selection mouseMotionEvent
+  glutRun .
+    fmap draw .
+    ezip' board $
+    ezip' (fmap snd selection) mouseMotionEvent
   where
     board = escanl doMove chessStart moves
     doMove board (src, dst) =
@@ -209,17 +212,17 @@ main = do
           | piecePos piece /= src = piece
           | otherwise = piece { piecePos = dst }
     selection =
-      fmap snd .
       edrop 1 .
-      escanl drag (Up, undefined) $
+      escanl drag (Up, undefined) .
+      ezip' (ereturn chessStart) $
       ezip' (keyState (MouseButton LeftButton)) mouseMotionEvent
-    drag (Down, (x, _)) (Down, c) =
+    drag (Down, (x, _)) (board, (Down, c)) =
       (Down, (x, filter isGoodMove (Just (screen2board c))))
       where
         isGoodMove dst =
-          any (any ((== dst) . fst) . possibleMoves chessStart) $
+          any (any ((== dst) . fst) . possibleMoves board) $
           pieceAt chessStart x
-    drag _ (s, c) =
+    drag _ (_, (s, c)) =
       (s, (spos, dst))
       where
         spos = screen2board c
@@ -230,8 +233,8 @@ main = do
       fmap (moveProc . fst) $
       efilter moveFilter $
       ezip' (delayEvent 1 selection) selection
-    moveProc (a, Just b) = (a, b)
+    moveProc (_, (a, Just b)) = (a, b)
     moveProc _ = undefined
-    moveFilter ((_, Just _), (_, Nothing)) = True
+    moveFilter ((_, (_, Just _)), (Up, _)) = True
     moveFilter _ = False
 
