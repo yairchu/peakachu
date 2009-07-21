@@ -1,3 +1,6 @@
+import Chess
+import ChessFont
+
 import Control.Monad (forM)
 import Data.Foldable (forM_)
 import Data.List
@@ -19,82 +22,6 @@ normalizeVec vec
   | otherwise = map (/ norm) vec
   where
     norm = sqrt . sum $ map (^ 2) vec
-
-data PieceType = Pawn | Knight | Bishop | Rook | Queen | King
-
-type BoardPos = (Integer, Integer)
-
-data PieceSide = Black | White
-  deriving Eq
-
-data Piece = Piece {
-  pieceSide :: PieceSide,
-  pieceType :: PieceType,
-  piecePos :: BoardPos
-}
-
-data Board = Board {
-  boardPieces :: [Piece]
-}
-
-type DrawPos = (GLfloat, GLfloat)
-
-data PiecePix = PiecePix {
-  pixBody :: [[DrawPos]],
-  pixOutline :: [[DrawPos]]
-}
-
-piecePix :: PieceType -> PiecePix
-piecePix Pawn =
-  PiecePix r r
-  where
-    r = [[(-s, -s), (-s, s), (s, s), (s, -s)]]
-    s = 0.6
-piecePix Rook = PiecePix {
-  pixBody = [thing, othing, [(-s, -s), (-s, s), (s, s), (s, -s)]],
-  pixOutline = [thing ++ othing]
-  }
-  where
-    s = 0.5
-    thing = [(-s, s), (-1, 1), (1, 1), (s, s)]
-    othing = map r thing
-    r (x, y) = (-x, -y)
-piecePix Knight = PiecePix {
-  pixBody = [[a, b, e] ,[b, c, d]],
-  pixOutline = [outline]
-  }
-  where
-    outline = [(-1, 0), (1, 1), (0.5, -1), (-1, -1), (0, 0)]
-    [a, b, c, d, e] = outline
-piecePix Bishop = PiecePix {
-  pixBody = [[a, b, d], [b, c, d]],
-  pixOutline = [outline]
-  }
-  where
-    outline = [(-1, -1), (0, 1), (1, -1), (0, -0.5)]
-    [a, b, c, d] = outline
-piecePix King = PiecePix {
-  pixBody = [leye, reye, [a, b, e], [c, d, e]],
-  pixOutline = [reverse leye, reye, mouthline]
-  }
-  where
-    reye = [(0.25, 0.5), (0.5, 0.75), (0.75, 0.5), (0.5, 0.25)]
-    leye = map m reye
-    m (x, y) = (-x, y)
-    mouthline =
-      [(-0.75, -0.75), (-0.75, -0.25)
-      ,(0, -0.5)
-      ,(0.75, -0.25), (0.75, -0.75)]
-    [a, b, c, d, e] = mouthline
-piecePix Queen = PiecePix {
-  pixBody = [[a, b, j], [d, e, f], [c, h, i], [c, g, h]],
-  pixOutline = [outline]
-  }
-  where
-    outline =
-      [(-1, 1), (-0.25, 0.5), (0, 1), (0.25, 0.5), (1, 1)
-      ,(0.5, 0), (1, -1), (0, -0.5), (-1, -1), (-0.5, 0)]
-    [a, b, c, d, e, f, g, h, i, j] = outline
 
 pieceAt :: Board -> BoardPos -> Maybe Piece
 pieceAt board pos =
@@ -207,15 +134,6 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
       where
         t (x, y) = (pieceSize*x, pieceSize*y)
     square = [((-1), (-1)), ((-1), 1), (1, 1), (1, (-1))]
-
-chessStart :: Board
-chessStart = Board (
-  concat (zipWith headRowItems [0..7] headRowTypes)
-  ++ [Piece side Pawn (x, y) |
-  x <- [0..7], (side, y) <- [(White, 1), (Black, 6)]])
-  where
-    headRowTypes = [Rook, Knight, Bishop, King, Queen, Bishop, Knight, Rook]
-    headRowItems x t = [Piece White t (x, 0), Piece Black t (x, 7)]
 
 keyState :: Key -> Event KeyState
 keyState key =
