@@ -25,12 +25,6 @@ normalizeVec vec
   where
     norm = sqrt . sum $ map (^ 2) vec
 
-pieceAt :: Board -> BoardPos -> Maybe Piece
-pieceAt board pos =
-  case filter ((== pos) . piecePos) (boardPieces board) of
-    [] -> Nothing
-    (x : _) -> Just x
-
 screen2board :: DrawPos -> BoardPos
 screen2board (cx, cy) =
   (r cx, r cy)

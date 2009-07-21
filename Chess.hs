@@ -1,5 +1,9 @@
 module Chess where
 
+import Control.Monad (guard)
+import Data.Foldable (Foldable, all, any)
+import Prelude hiding (all, any, null)
+
 data PieceType = Pawn | Knight | Bishop | Rook | Queen | King
 
 type BoardPos = (Integer, Integer)
@@ -45,12 +49,60 @@ rays Queen = rays Bishop ++ rays Rook
 rays King = map (take 1) $ rays Queen
 rays Pawn = []
 
-possibleMoves :: Piece -> Board -> [(BoardPos, Board)]
-possibleMoves piece board = do
-  relRay <- rays (pieceType piece)
-  dst <- takeWhile notBlocked $ map (addPos (piecePos piece)) relRay
-  return (dst, board)
-  where
-    notBlocked (x, y) =
-      0 <= x && x < 8 && 0 <= y && y < 8
+pieceAt :: Board -> BoardPos -> Maybe Piece
+pieceAt board pos =
+  case filter ((== pos) . piecePos) (boardPieces board) of
+    [] -> Nothing
+    (x : _) -> Just x
 
+takeUntilIncluding :: (a -> Bool) -> [a] -> [a]
+takeUntilIncluding _ [] = []
+takeUntilIncluding func (x : xs)
+  | func x = [x]
+  | otherwise = x : takeUntilIncluding func xs
+
+null :: Foldable t => t a -> Bool
+null = all (const False)
+
+possibleMoves :: Piece -> Board -> [(BoardPos, Board)]
+possibleMoves piece board =
+  simpleMoves ++ otherMoves (pieceType piece)
+  where
+    simpleMoves = do
+      relRay <- rays (pieceType piece)
+      dst <-
+        takeUntilIncluding (not . null . pieceAt board) .
+        takeWhile notBlocked $
+        map (addPos (piecePos piece)) relRay
+      return $ simpleMove dst
+    simpleMove dst =
+      (dst, newBoard)
+      where
+        newBoard =
+          Board $
+          piece { piecePos = dst } :
+          filter ((/= dst) . piecePos) (boardPieces board)
+    inBoard (x, y) = 0 <= x && x < 8 && 0 <= y && y < 8
+    isOtherSide = (/= pieceSide piece) . pieceSide
+    notBlocked pos =
+      inBoard pos &&
+      all isOtherSide (pieceAt board pos)
+    otherMoves Pawn =
+      map simpleMove .
+      filter inBoard $
+      moveForward ++
+      filter (any isOtherSide . pieceAt board)
+        [(sx-1, sy+forward), (sx+1, sy+forward)] ++
+      do
+        guard $ sy == pawnStartRow
+        guard . not $ null moveForward
+        guard . null $ pieceAt board sprintDst
+        return sprintDst
+      where
+        moveForward = filter (null . pieceAt board) [(sx, sy+forward)]
+        sprintDst = (sx, sy+forward*2)
+    otherMoves _ = []
+    (forward, pawnStartRow)
+      | pieceSide piece == White = (1, 1)
+      | otherwise = (-1, 6)
+    (sx, sy) = piecePos piece
