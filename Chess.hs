@@ -19,7 +19,8 @@ data PieceSide = Black | White
 data Piece = Piece {
   pieceSide :: PieceSide,
   pieceType :: PieceType,
-  piecePos :: BoardPos
+  piecePos :: BoardPos,
+  pieceMoved :: Bool
 }
 
 data Board = Board {
@@ -32,13 +33,15 @@ chessStart =
   Board {
     boardPieces =
       concat (zipWith headRowItems [0..7] headRowTypes) ++
-      [Piece side Pawn (x, y) |
+      [Piece side Pawn (x, y) False |
       x <- [0..7], (side, y) <- [(White, 1), (Black, 6)]],
     boardLastMove = Nothing
   }
   where
     headRowTypes = [Rook, Knight, Bishop, King, Queen, Bishop, Knight, Rook]
-    headRowItems x t = [Piece White t (x, 0), Piece Black t (x, 7)]
+    headRowItems x t = do
+      (col, row) <- [(White, 0), (Black, 7)]
+      return $ Piece col t (x, row) False
 
 addPos :: BoardPos -> BoardPos -> BoardPos
 addPos (xa, ya) (xb, yb) = (xa+xb, ya+yb)
@@ -97,7 +100,8 @@ possibleMoves board piece =
               (boardPieces board),
             boardLastMove = Just (newPieceState, src)
           }
-        newPieceState = updPiece { piecePos = dst }
+        newPieceState =
+          updPiece { piecePos = dst, pieceMoved = True }
     simpleMove dst = move piece dst dst
     inBoard (x, y) = 0 <= x && x < 8 && 0 <= y && y < 8
     isOtherSide = (/= pieceSide piece) . pieceSide

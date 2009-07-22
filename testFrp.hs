@@ -1,7 +1,7 @@
 import Chess
 import ChessFont
 
-import Control.Monad (forM, join)
+import Control.Monad (forM, join, when)
 import Data.Foldable (any, foldl', forM_, toList)
 import Data.List.Class (filter, genericTake)
 import Data.Monoid
@@ -71,7 +71,7 @@ expandOutline ammount outline =
 type Selection = (BoardPos, Maybe BoardPos)
 
 draw :: (Board, (Selection, DrawPos)) -> Image
-draw (board, ((dragSrc, dragDst), (cx, cy))) =
+draw (board, ((dragSrc, dragDst), cpos@(cx, cy))) =
   Image $ do
     cursor $= None
     lineSmooth $= Enabled
@@ -86,9 +86,11 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
     cullFace $= Nothing
     drawBoard
     forM_ (boardPieces board) drawPiece
+    when srcFirst $ drawCursor dragSrc
     forM_ dragDst drawCursor
-    drawCursor dragSrc
+    when (not srcFirst) $ drawCursor dragSrc
   where
+    srcFirst = screen2board cpos == dragSrc
     headingUp = normal $ Normal3 0 0 (-1 :: GLfloat)
     drawPiece piece = do
       let
