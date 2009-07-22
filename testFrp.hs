@@ -1,8 +1,8 @@
 import Chess
 import ChessFont
 
-import Control.Monad (forM)
-import Data.Foldable (any, forM_, toList)
+import Control.Monad (forM, join)
+import Data.Foldable (any, foldl', forM_, toList)
 import Data.List.Class (filter, genericTake)
 import Data.Monoid
 import FRP.Peakachu
@@ -196,6 +196,26 @@ isGoodMove :: Board -> BoardPos -> BoardPos -> Bool
 isGoodMove board src dst =
   any(any ((== dst) . fst) . possibleMoves board) $ pieceAt board src
 
+maybeMinimumOn :: Ord b => (a -> b) -> [a] -> Maybe a
+maybeMinimumOn f =
+  foldl' maybeMin Nothing
+  where
+    maybeMin Nothing x = Just x
+    maybeMin (Just x) y
+      | f y < f x = Just y
+      | otherwise = Just x
+
+chooseMove :: Board -> BoardPos -> DrawPos -> Maybe (BoardPos, Board)
+chooseMove board src (dx, dy) =
+  join .
+  fmap (maybeMinimumOn (dist . fst) . possibleMoves board) $
+  pieceAt board src
+  where
+    dist pos =
+      (px-dx) ^ 2 + (py-dy) ^ 2
+      where
+        (px, py) = board2screen pos
+
 main :: IO ()
 main = do
   initialWindowSize $= Size 600 600
@@ -210,35 +230,30 @@ main = do
   where
     board = escanl doMove chessStart moves
     doMove brd (src, Nothing) = brd
-    doMove brd (src, Just dst)
-      | null ms = brd
-      | otherwise = snd $ head ms
-      where
-        ms =
-          filter ((== dst) . fst) .
-          concat . toList .
-          fmap (possibleMoves brd) $
-          pieceAt brd src
+    doMove brd (src, Just dst) =
+      case chooseMove brd src dst of
+        Nothing -> brd
+        Just r -> snd r
     selection =
       fmap proc .
       ezip' board $
       fmap snd selectionRaw
       where
-        proc (curBoard, (src, dst)) =
-          (src, filter (isGoodMove curBoard src) dst)
+        proc (brd, (src, dst)) =
+          (src, join (fmap (fmap fst . chooseMove brd src) dst))
     selectionRaw =
       edrop 1 .
       escanl drag (Up, undefined) $
       ezip' (keyState (MouseButton LeftButton)) mouseMotionEvent
     drag (Down, (x, _)) (Down, c) =
-      (Down, (x, Just (screen2board c)))
+      (Down, (x, Just c))
     drag _ (s, c) =
       (s, (spos, dst))
       where
         spos = screen2board c
         dst
           | s == Up = Nothing
-          | otherwise = Just spos
+          | otherwise = Just c
     moves =
       fmap (snd . fst) $
       efilter moveFilter $
