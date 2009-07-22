@@ -86,26 +86,31 @@ possibleMoves board piece =
         map (addPos src) relRay
       return $ simpleMove dst
     src = piecePos piece
-    simpleMove dst =
+    move updPiece clearPos dst =
       (dst, newBoard)
       where
         newBoard =
           Board {
             boardPieces =
               newPieceState :
-              filter (not . (`elem` [src, dst]) . piecePos)
+              filter (not . (`elem` [src, clearPos]) . piecePos)
               (boardPieces board),
             boardLastMove = Just (newPieceState, src)
           }
-        newPieceState = piece { piecePos = dst }
+        newPieceState = updPiece { piecePos = dst }
+    simpleMove dst = move piece dst dst
     inBoard (x, y) = 0 <= x && x < 8 && 0 <= y && y < 8
     isOtherSide = (/= pieceSide piece) . pieceSide
     notBlocked pos =
       inBoard pos &&
       all isOtherSide (pieceAt board pos)
+    promotionRow = pawnStartRow + 6 * forward
+    pawnMove dst@(dx, dy)
+      | dy /= promotionRow = simpleMove dst
+      | otherwise = move (piece { pieceType = Queen }) dst dst
     otherMoves Pawn =
       (enPassant (boardLastMove board) ++) $
-      map simpleMove .
+      map pawnMove .
       filter inBoard $
       moveForward ++
       filter (any isOtherSide . pieceAt board)
@@ -126,18 +131,11 @@ possibleMoves board piece =
           | pieceType lpiece /= Pawn = []
           | pieceSide lpiece == pieceSide piece = []
           | not (null (pieceAt board dst)) = []
-          | otherwise =
-            [(dst, Board {
-              boardPieces =
-                newPieceState :
-                filter (not . (`elem` [src, (px, py)]) . piecePos)
-                (boardPieces board),
-              boardLastMove = Just (newPieceState, src)
-            })]
+          | otherwise = [move piece prevPos dst]
           where
             dst = (mx, sy+forward)
             newPieceState = piece { piecePos = dst }
-            (px, py) = piecePos lpiece
+            prevPos@(px, py) = piecePos lpiece
     otherMoves _ = []
     (forward, pawnStartRow)
       | pieceSide piece == White = (1, 1)
