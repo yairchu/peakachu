@@ -1,4 +1,7 @@
-module Chess where
+module Chess (
+  PieceType(..), BoardPos, PieceSide(..), Piece(..), Board(..),
+  chessStart, pieceAt, possibleMoves
+  ) where
 
 import Control.Monad (guard)
 import Data.Foldable (Foldable, all, any)
@@ -78,8 +81,9 @@ possibleMoves board piece =
       dst <-
         takeUntilIncluding (not . null . pieceAt board) .
         takeWhile notBlocked $
-        map (addPos (piecePos piece)) relRay
+        map (addPos src) relRay
       return $ simpleMove dst
+    src = piecePos piece
     simpleMove dst =
       (dst, newBoard)
       where
@@ -87,8 +91,9 @@ possibleMoves board piece =
           Board {
             boardPieces =
               newPieceState :
-              filter ((/= dst) . piecePos) (boardPieces board),
-            boardLastMove = Just (newPieceState, piecePos piece)
+              filter (not . (`elem` [src, dst]) . piecePos)
+              (boardPieces board),
+            boardLastMove = Just (newPieceState, src)
           }
         newPieceState = piece { piecePos = dst }
     inBoard (x, y) = 0 <= x && x < 8 && 0 <= y && y < 8
@@ -114,4 +119,5 @@ possibleMoves board piece =
     (forward, pawnStartRow)
       | pieceSide piece == White = (1, 1)
       | otherwise = (-1, 6)
-    (sx, sy) = piecePos piece
+    (sx, sy) = src
+

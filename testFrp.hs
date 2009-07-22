@@ -192,6 +192,10 @@ delayEvent count =
   where
     step xs x = genericTake count $ x : xs
 
+isGoodMove :: Board -> BoardPos -> BoardPos -> Bool
+isGoodMove board src dst =
+  any(any ((== dst) . fst) . possibleMoves board) $ pieceAt board src
+
 main :: IO ()
 main = do
   initialWindowSize $= Size 600 600
@@ -205,13 +209,22 @@ main = do
     ezip' (fmap snd selection) mouseMotionEvent
   where
     board = escanl doMove chessStart moves
-    doMove board (src, dst) =
-      Board (map m (boardPieces board)) Nothing
+    doMove brd (src, dst)
+      | null ms = brd
+      | otherwise = snd $ head ms
       where
-        m piece
-          | piecePos piece /= src = piece
-          | otherwise = piece { piecePos = dst }
+        ms =
+          filter ((== dst) . fst) .
+          concat . toList .
+          fmap (possibleMoves brd) $
+          pieceAt brd src
     selection =
+      fmap proc $
+      ezip' board selectionRaw
+      where
+        proc (curBoard, (keyState, (src, dst))) =
+          (keyState, (src, filter (isGoodMove curBoard src) dst))
+    selectionRaw =
       edrop 1 .
       escanl drag (Up, undefined) $
       ezip' (keyState (MouseButton LeftButton)) mouseMotionEvent
@@ -227,7 +240,7 @@ main = do
     moves =
       fmap (moveProc . fst) $
       efilter moveFilter $
-      ezip' (delayEvent 1 selection) selection
+      ezip' (delayEvent 1 selectionRaw) selectionRaw
     moveProc (_, (a, Just b)) = (a, b)
     moveProc _ = undefined
     moveFilter ((_, (_, Just _)), (Up, _)) = True
