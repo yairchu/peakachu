@@ -190,7 +190,7 @@ delayEvent count =
   edrop count .
   escanl step []
   where
-    step xs x = genericTake (count+1) $ x : xs
+    step xs x = x : genericTake count xs
 
 isGoodMove :: Board -> BoardPos -> BoardPos -> Bool
 isGoodMove board src dst =

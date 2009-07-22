@@ -120,8 +120,9 @@ possibleMoves board piece =
         sprintDst = (sx, sy+forward*2)
         enPassant Nothing = []
         enPassant (Just (lpiece, m@(mx, my)))
-          | my /= sy = []
+          | py /= sy = []
           | abs (mx-sx) /= 1 = []
+          | abs (py-my) /= 2 = []
           | pieceType lpiece /= Pawn = []
           | pieceSide lpiece == pieceSide piece = []
           | not (null (pieceAt board dst)) = []
@@ -129,13 +130,14 @@ possibleMoves board piece =
             [(dst, Board {
               boardPieces =
                 newPieceState :
-                filter (not . (`elem` [src, dst, m]) . piecePos)
+                filter (not . (`elem` [src, (px, py)]) . piecePos)
                 (boardPieces board),
               boardLastMove = Just (newPieceState, src)
             })]
           where
             dst = (mx, sy+forward)
             newPieceState = piece { piecePos = dst }
+            (px, py) = piecePos lpiece
     otherMoves _ = []
     (forward, pawnStartRow)
       | pieceSide piece == White = (1, 1)
