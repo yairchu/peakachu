@@ -229,9 +229,9 @@ main = do
     ezip' selection mouseMotionEvent
   where
     board = escanl doMove chessStart moves
-    doMove brd (src, Nothing) = brd
-    doMove brd (src, Just dst) =
-      case chooseMove brd src dst of
+    procDst brd src = join . fmap (chooseMove brd src)
+    doMove brd (src, dst) =
+      case procDst brd src dst of
         Nothing -> brd
         Just r -> snd r
     selection =
@@ -240,7 +240,7 @@ main = do
       fmap snd selectionRaw
       where
         proc (brd, (src, dst)) =
-          (src, join (fmap (fmap fst . chooseMove brd src) dst))
+          (src, fmap fst (procDst brd src dst))
     selectionRaw =
       edrop 1 .
       escanl drag (Up, undefined) $

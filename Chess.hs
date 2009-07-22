@@ -7,7 +7,9 @@ import Control.Monad (guard)
 import Data.Foldable (Foldable, all, any)
 import Prelude hiding (all, any, null)
 
-data PieceType = Pawn | Knight | Bishop | Rook | Queen | King
+data PieceType =
+  Pawn | Knight | Bishop | Rook | Queen | King
+  deriving Eq
 
 type BoardPos = (Integer, Integer)
 
@@ -102,6 +104,7 @@ possibleMoves board piece =
       inBoard pos &&
       all isOtherSide (pieceAt board pos)
     otherMoves Pawn =
+      (enPassant (boardLastMove board) ++) $
       map simpleMove .
       filter inBoard $
       moveForward ++
@@ -115,6 +118,24 @@ possibleMoves board piece =
       where
         moveForward = filter (null . pieceAt board) [(sx, sy+forward)]
         sprintDst = (sx, sy+forward*2)
+        enPassant Nothing = []
+        enPassant (Just (lpiece, m@(mx, my)))
+          | my /= sy = []
+          | abs (mx-sx) /= 1 = []
+          | pieceType lpiece /= Pawn = []
+          | pieceSide lpiece == pieceSide piece = []
+          | not (null (pieceAt board dst)) = []
+          | otherwise =
+            [(dst, Board {
+              boardPieces =
+                newPieceState :
+                filter (not . (`elem` [src, dst, m]) . piecePos)
+                (boardPieces board),
+              boardLastMove = Just (newPieceState, src)
+            })]
+          where
+            dst = (mx, sy+forward)
+            newPieceState = piece { piecePos = dst }
     otherMoves _ = []
     (forward, pawnStartRow)
       | pieceSide piece == White = (1, 1)
