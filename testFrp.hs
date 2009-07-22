@@ -213,16 +213,11 @@ main = do
           | otherwise = piece { piecePos = dst }
     selection =
       edrop 1 .
-      escanl drag (Up, undefined) .
-      ezip' (ereturn chessStart) $
+      escanl drag (Up, undefined) $
       ezip' (keyState (MouseButton LeftButton)) mouseMotionEvent
-    drag (Down, (x, _)) (board, (Down, c)) =
-      (Down, (x, filter isGoodMove (Just (screen2board c))))
-      where
-        isGoodMove dst =
-          any (any ((== dst) . fst) . possibleMoves board) $
-          pieceAt chessStart x
-    drag _ (_, (s, c)) =
+    drag (Down, (x, _)) (Down, c) =
+      (Down, (x, Just (screen2board c)))
+    drag _ (s, c) =
       (s, (spos, dst))
       where
         spos = screen2board c
