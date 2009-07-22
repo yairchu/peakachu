@@ -115,7 +115,7 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
         renderPrimitive polyType . forM poly . vert $ pieceSize * 0.125
       materialDiffuse Front $= outlineCol
       renderPrimitive Quads .
-        forM (pixOutline pix) $ \outline -> do
+        forM (pixOutline pix) $ \outline ->
         forM (outlineSegments 
           (zip outline (expandOutline (-0.06) outline))) $
           \((a, b), (d, c)) ->
@@ -125,7 +125,7 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
       forM_ [0..7] $ \bx ->
       forM_ [0..7] $ \by -> do
         let
-          col = 0.2 + 0.1 * (fromIntegral ((bx + by) `mod` 2))
+          col = 0.2 + 0.1 * fromIntegral ((bx + by) `mod` 2)
           r ba va = 0.125*((fromIntegral ba*2+va)-7)
         materialDiffuse Front $= Color4 col col col 1
         headingUp
