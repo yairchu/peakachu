@@ -190,7 +190,7 @@ delayEvent count =
   edrop count .
   escanl step []
   where
-    step xs x = genericTake count $ x : xs
+    step xs x = genericTake (count+1) $ x : xs
 
 isGoodMove :: Board -> BoardPos -> BoardPos -> Bool
 isGoodMove board src dst =
@@ -258,6 +258,6 @@ main = do
       fmap (snd . fst) $
       efilter moveFilter $
       ezip' (delayEvent 1 selectionRaw) selectionRaw
-    moveFilter ((_, (_, Just _)), (Up, _)) = True
+    moveFilter ((Down, _), (Up, _)) = True
     moveFilter _ = False
 
