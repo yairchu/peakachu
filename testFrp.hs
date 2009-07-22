@@ -86,8 +86,8 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
     cullFace $= Nothing
     drawBoard
     forM_ (boardPieces board) drawPiece
-    drawCursor dragSrc
     forM_ dragDst drawCursor
+    drawCursor dragSrc
   where
     headingUp = normal $ Normal3 0 0 (-1 :: GLfloat)
     drawPiece piece = do
@@ -125,7 +125,7 @@ draw (board, ((dragSrc, dragDst), (cx, cy))) =
       forM_ [0..7] $ \bx ->
       forM_ [0..7] $ \by -> do
         let
-          col = 0.2 + 0.1 * fromIntegral ((bx + by) `mod` 2)
+          col = 0.3 + 0.1 * fromIntegral ((bx + by) `mod` 2)
           r ba va = 0.125*((fromIntegral ba*2+va)-7)
         materialDiffuse Front $= Color4 col col col 1
         headingUp
@@ -206,10 +206,11 @@ main = do
   glutRun .
     fmap draw .
     ezip' board $
-    ezip' (fmap snd selection) mouseMotionEvent
+    ezip' selection mouseMotionEvent
   where
     board = escanl doMove chessStart moves
-    doMove brd (src, dst)
+    doMove brd (src, Nothing) = brd
+    doMove brd (src, Just dst)
       | null ms = brd
       | otherwise = snd $ head ms
       where
@@ -219,11 +220,12 @@ main = do
           fmap (possibleMoves brd) $
           pieceAt brd src
     selection =
-      fmap proc $
-      ezip' board selectionRaw
+      fmap proc .
+      ezip' board $
+      fmap snd selectionRaw
       where
-        proc (curBoard, (keyState, (src, dst))) =
-          (keyState, (src, filter (isGoodMove curBoard src) dst))
+        proc (curBoard, (src, dst)) =
+          (src, filter (isGoodMove curBoard src) dst)
     selectionRaw =
       edrop 1 .
       escanl drag (Up, undefined) $
@@ -238,11 +240,9 @@ main = do
           | s == Up = Nothing
           | otherwise = Just spos
     moves =
-      fmap (moveProc . fst) $
+      fmap (snd . fst) $
       efilter moveFilter $
       ezip' (delayEvent 1 selectionRaw) selectionRaw
-    moveProc (_, (a, Just b)) = (a, b)
-    moveProc _ = undefined
     moveFilter ((_, (_, Just _)), (Up, _)) = True
     moveFilter _ = False
 
