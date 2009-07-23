@@ -11,7 +11,7 @@ Build-type:          Simple
 Library
   hs-Source-Dirs:      src
   Extensions:
-  Build-Depends:       base, haskell98, generator, old-time, GLUT, mtl
+  Build-Depends:       base, haskell98, old-time, GLUT, mtl, List, generator
   Exposed-modules:     FRP.Peakachu
                        FRP.Peakachu.Backend.GLUT
                        FRP.Peakachu.Internal
