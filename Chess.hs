@@ -3,8 +3,8 @@ module Chess (
   chessStart, pieceAt, possibleMoves
   ) where
 
-import Control.Monad (guard)
-import Data.Foldable (Foldable, all, any)
+import Control.Monad (guard, forM)
+import Data.Foldable (Foldable, all, any, toList)
 import Prelude hiding (all, any, null)
 
 data PieceType =
@@ -140,6 +140,41 @@ possibleMoves board piece =
             dst = (mx, sy+forward)
             newPieceState = piece { piecePos = dst }
             prevPos@(px, py) = piecePos lpiece
+    otherMoves King = do
+      guard . not $ pieceMoved piece
+      let
+        dangerZone =
+          map fst $
+          concatMap (possibleMoves board) dangers
+        dangers = filter isDanger $ boardPieces board
+        isDanger p =
+          pieceSide p /= pieceSide piece &&
+          (pieceMoved p || pieceType p /= King)
+      (rookX, kingDstX, rookDstX, clearPath, safePath) <-
+        [(0, 1, 2, [1, 2], [3]), (7, 5, 4, [4..6], [3, 4])]
+      let rookPos = (rookX, sy)
+      rook <- toList $ pieceAt board rookPos
+      forM clearPath $ \x ->
+        guard . null $ pieceAt board (x, sy)
+      forM safePath $ \x ->
+        guard . not $ (x, sy) `elem` dangerZone
+      guard $ Rook == pieceType rook
+      guard . not $ pieceMoved rook
+      let
+        kingDst = (kingDstX, sy)
+        newKingState =
+          piece { piecePos = kingDst, pieceMoved = True }
+        newRookState =
+          rook { piecePos = (rookDstX, sy), pieceMoved = True }
+        newBoard =
+          Board {
+            boardPieces =
+              [newKingState, newRookState] ++
+              filter (not . (`elem` [src, rookPos]) . piecePos)
+              (boardPieces board),
+            boardLastMove = Just (newKingState, src)
+          }
+      return (kingDst, newBoard)
     otherMoves _ = []
     (forward, pawnStartRow)
       | pieceSide piece == White = (1, 1)

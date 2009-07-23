@@ -1,7 +1,7 @@
 import Chess
 import ChessFont
 
-import Control.Monad (forM, join, when)
+import Control.Monad (forM, join, when, unless)
 import Data.Foldable (any, foldl', forM_, toList)
 import Data.List.Class (filter, genericTake)
 import Data.Monoid
@@ -88,7 +88,7 @@ draw (board, ((dragSrc, dragDst), cpos@(cx, cy))) =
     forM_ (boardPieces board) drawPiece
     when srcFirst $ drawCursor dragSrc
     forM_ dragDst drawCursor
-    when (not srcFirst) $ drawCursor dragSrc
+    unless srcFirst $ drawCursor dragSrc
   where
     srcFirst = screen2board cpos == dragSrc
     headingUp = normal $ Normal3 0 0 (-1 :: GLfloat)
