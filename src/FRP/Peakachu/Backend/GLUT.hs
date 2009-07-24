@@ -70,11 +70,13 @@ draw image = do
   flush
 
 run :: (UI -> Event Image) -> IO ()
-run program = do
+run programDesc = do
   _ <- getArgsAndInitialize
   initialDisplayMode $~ (DoubleBuffered:)
   createWindow "test"
-  (`addHandler` draw) . program =<< createUI
+  program <- fmap programDesc createUI
+  mapM_ draw (initialValues program)
+  addHandler program draw
   displayCallback $= return ()
   mainLoop
 
