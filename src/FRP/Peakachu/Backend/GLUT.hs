@@ -7,14 +7,12 @@ module FRP.Peakachu.Backend.GLUT (
   ) where
 
 import Control.Monad (unless)
-import Control.Monad.Consumer (consumeRestM, evalConsumerT, next)
-import Control.Monad.Trans (liftIO)
-import Data.Function (fix)
+import Control.Monad.ListT (ListT(..), ListItem(..))
 import Data.Monoid (Monoid(..))
 import Foreign (unsafePerformIO)
 import FRP.Peakachu (ereturn, ezip')
 import FRP.Peakachu.Internal (
-  Event(..), makeCallbackEvent, makePollStateEvent)
+  Event(..), Time, makeCallbackEvent, makePollStateEvent)
 import Graphics.UI.GLUT (
   ($=), ($~), ClearBuffer(..), Key(..), KeyState(..),
   Modifiers, Position(..), GLfloat, Size(..),
@@ -62,7 +60,7 @@ windowSizeEvent =
 
 mouseMotionEvent :: Event (GLfloat, GLfloat)
 mouseMotionEvent =
-  mappend (ereturn (0, 0)) .
+  mappend (ereturn (0, 0)) . -- is there a way to get the initial mouse position?
   fmap f .
   ezip' windowSizeEvent $
   mappend glMotionEvent glPassiveMotionEvent
@@ -70,22 +68,25 @@ mouseMotionEvent =
     f ((Size sx sy), (Position px py)) = (r sx px, - r sy py)
     r sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
 
+glutIdleCallback :: ListT IO [(Time, Image)] -> IO ()
+glutIdleCallback program = do
+  item <- runListT program
+  case item of
+    Nil -> leaveMainLoop
+    Cons items rest -> do
+      unless (null items) $ do
+        clear [ ColorBuffer ]
+        runImage . snd $ last items
+        swapBuffers
+        flush
+      idleCallback $= Just (glutIdleCallback rest)
+
 glutRun :: Event Image -> IO ()
 glutRun program = do
   _ <- getArgsAndInitialize
   initialDisplayMode $~ (DoubleBuffered:)
   createWindow "test"
-  (`evalConsumerT` runEvent program) . fix $ \rest -> do
-    mx <- next
-    case mx of
-      Nothing -> liftIO leaveMainLoop
-      Just items -> do
-        unless (null items) . liftIO $ do
-          clear [ ColorBuffer ]
-          runImage . snd $ last items
-          swapBuffers
-          flush
-        liftIO . (idleCallback $=) . Just =<< consumeRestM rest
+  idleCallback $= Just (glutIdleCallback (runEvent program))
   displayCallback $= return ()
   mainLoop
 
