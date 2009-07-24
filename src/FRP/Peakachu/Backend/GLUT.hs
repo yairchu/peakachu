@@ -74,7 +74,7 @@ run program = do
   _ <- getArgsAndInitialize
   initialDisplayMode $~ (DoubleBuffered:)
   createWindow "test"
-  addHandler draw . program =<< createUI
+  (`addHandler` draw) . program =<< createUI
   displayCallback $= return ()
   mainLoop
 

@@ -2,68 +2,59 @@
 
 module FRP.Peakachu.Internal (
   Event(..), escanl, efilter,
-  makeCallbackEvent, addHandler
+  makeCallbackEvent
   ) where
 
 import Control.Concurrent.MVar (
-  MVar, newMVar, putMVar, readMVar, takeMVar)
+  newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (when)
 import Data.Monoid (Monoid(..))
 
-type Handler a = a -> IO ()
-
 newtype Event a = Event {
-  runEvent :: IO (MVar [Handler a])
+  addHandler :: (a -> IO ()) -> IO ()
 }
 
-addHandler :: Handler a -> Event a -> IO ()
-addHandler handler event = do
-  var <- runEvent event
-  putMVar var . (handler :) =<< takeMVar var
-
 instance Functor Event where
-  fmap func event = Event $ do
-    dstHandlersVar <- newMVar []
-    let
-      srcHandler val =
-        mapM_ ($ func val) =<< readMVar dstHandlersVar
-    addHandler srcHandler event
-    return dstHandlersVar
+  fmap func event =
+    Event {
+      addHandler = addHandler event . (. func)
+    }
 
 instance Monoid (Event a) where
-  mempty = Event $ newMVar []
-  mappend a b = Event $ do
-    dstHandlersVar <- newMVar []
-    let
-      srcHandler val =
-        mapM_ ($ val) =<< readMVar dstHandlersVar
-    addHandler srcHandler a
-    addHandler srcHandler b
-    return dstHandlersVar
+  mempty =
+    Event {
+      addHandler = const $ return ()
+    }
+  mappend x y =
+    Event {
+      addHandler = \handler -> do
+        addHandler x handler
+        addHandler y handler
+    }
 
 escanl :: (a -> b -> a) -> a -> Event b -> Event a
-escanl step startVal event = Event $ do
-  -- TODO : yield start value
-  dstHandlersVar <- newMVar []
-  accVar <- newMVar startVal
-  let
-    srcHandler val = do
-      prevAcc <- takeMVar accVar
-      let newAcc = step prevAcc val
-      putMVar accVar newAcc
-      mapM_ ($ newAcc) =<< readMVar dstHandlersVar
-  addHandler srcHandler event
-  return dstHandlersVar
+escanl step startVal event =
+  Event {
+    addHandler = \handler -> do
+      accVar <- newMVar startVal
+      let
+        srcHandler val = do
+          prevAcc <- takeMVar accVar
+          let newAcc = step prevAcc val
+          putMVar accVar newAcc
+          handler newAcc
+      addHandler event srcHandler
+  }
 
 efilter :: (a -> Bool) -> Event a -> Event a
-efilter cond event = Event $ do
-  dstHandlersVar <- newMVar []
-  let
-    srcHandler val =
-      when (cond val) $
-      mapM_ ($ val) =<< readMVar dstHandlersVar
-  addHandler srcHandler event
-  return dstHandlersVar
+efilter cond event =
+  Event {
+    addHandler = \handler -> do
+      let
+        srcHandler val =
+          when (cond val) (handler val)
+      addHandler event srcHandler
+  }
 
 makeCallbackEvent :: IO (Event a, a -> IO ())
 makeCallbackEvent = do
@@ -71,5 +62,10 @@ makeCallbackEvent = do
   let
     srcHandler val =
       mapM_ ($ val) =<< readMVar dstHandlersVar
-  return (Event (return dstHandlersVar), srcHandler)
-
+    event =
+      Event {
+        addHandler = \handler ->
+          takeMVar dstHandlersVar >>=
+          putMVar dstHandlersVar . (handler :)
+      }
+  return (event, srcHandler)
