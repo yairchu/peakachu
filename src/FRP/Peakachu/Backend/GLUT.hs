@@ -1,19 +1,18 @@
 {-# OPTIONS -O2 -Wall #-}
 
 module FRP.Peakachu.Backend.GLUT (
-  Image(..), UI(..), glutRun,
-  glKeyboardMouseEvent, glMotionEvent, glPassiveMotionEvent,
+  Image(..), UI(..), run
   ) where
 
 import Control.Monad (unless)
 import Control.Monad.ListT (ListT(..), ListItem(..))
 import Data.Monoid (Monoid(..))
-import Foreign (unsafePerformIO)
 import FRP.Peakachu (ereturn, ezip')
 import FRP.Peakachu.Internal (
   Event(..), Time, makeCallbackEvent, makePollStateEvent)
 import Graphics.UI.GLUT (
-  ($=), ($~), ClearBuffer(..), Key(..), KeyState(..),
+  ($=), ($~), SettableStateVar,
+  ClearBuffer(..), Key(..), KeyState(..),
   Modifiers, Position(..), GLfloat, Size(..),
   DisplayMode(..), initialDisplayMode, swapBuffers,
   createWindow, getArgsAndInitialize,
@@ -31,41 +30,35 @@ instance Monoid Image where
 
 data UI = UI {
   windowSizeEvent :: Event Size,
-  mouseMotionEvent :: Event (GLfloat, GLfloat)
+  mouseMotionEvent :: Event (GLfloat, GLfloat),
+  glutKeyboardMouseEvent :: Event (Key, KeyState, Modifiers, Position)
   }
 
-glKeyboardMouseEvent :: Event (Key, KeyState, Modifiers, Position)
-glKeyboardMouseEvent =
-  unsafePerformIO $ do
-    (event, callback) <- makeCallbackEvent
-    let cb a b c d = callback (a, b, c, d)
-    keyboardMouseCallback $= Just cb
-    return event
-
-glMotionEvent :: Event Position
-glMotionEvent =
-  unsafePerformIO $ do
-    (event, callback) <- makeCallbackEvent
-    motionCallback $= Just callback
-    return event
-
-glPassiveMotionEvent :: Event Position
-glPassiveMotionEvent =
-  unsafePerformIO $ do
-    (event, callback) <- makeCallbackEvent
-    passiveMotionCallback $= Just callback
-    return event
+makeCallbackEvent' ::
+  SettableStateVar (Maybe b) ->
+  ((a -> IO ()) -> b) ->
+  IO (Event a)
+makeCallbackEvent' callbackVar trans = do
+  (event, callback) <- makeCallbackEvent
+  callbackVar $= Just (trans callback)
+  return event
 
 createUI :: IO UI
 createUI = do
   windowSizeE <- makePollStateEvent (get windowSize)
+  glutMotionEvent <- makeCallbackEvent' motionCallback id
+  glutPassiveMotionEvent <- makeCallbackEvent' passiveMotionCallback id
+  glutKeyboardMouseE <-
+    makeCallbackEvent' keyboardMouseCallback $
+    \cb a b c d -> cb (a,b,c,d)
   return UI {
     windowSizeEvent = windowSizeE,
+    glutKeyboardMouseEvent = glutKeyboardMouseE,
     mouseMotionEvent =
       mappend (ereturn (0, 0)) . -- is there a way to get the initial mouse position?
       fmap pixel2gl .
       ezip' windowSizeE $
-      mappend glMotionEvent glPassiveMotionEvent
+      mappend glutMotionEvent glutPassiveMotionEvent
   }
   where
     pixel2gl ((Size sx sy), (Position px py)) = (p2g sx px, - p2g sy py)
@@ -84,8 +77,8 @@ glutIdleCallback program = do
         flush
       idleCallback $= Just (glutIdleCallback rest)
 
-glutRun :: (UI -> Event Image) -> IO ()
-glutRun program = do
+run :: (UI -> Event Image) -> IO ()
+run program = do
   _ <- getArgsAndInitialize
   initialDisplayMode $~ (DoubleBuffered:)
   createWindow "test"

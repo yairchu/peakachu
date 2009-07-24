@@ -177,11 +177,11 @@ draw (board, ((dragSrc, dragDst), cpos@(cx, cy))) =
         t (x, y) = (pieceSize*x, pieceSize*y)
     square = [((-1), (-1)), ((-1), 1), (1, 1), (1, (-1))]
 
-keyState :: Key -> Event KeyState
-keyState key =
+keyState :: UI -> Key -> Event KeyState
+keyState ui key =
   mappend (ereturn Up) .
   fmap m $
-  efilter f glKeyboardMouseEvent
+  efilter f (glutKeyboardMouseEvent ui)
   where
     m (_, state, _, _) = state
     f (k, _, _, _) = k == key
@@ -240,7 +240,7 @@ game ui =
     selectionRaw =
       edrop 1 .
       escanl drag (Up, undefined) $
-      ezip' (keyState (MouseButton LeftButton)) (mouseMotionEvent ui)
+      ezip' (keyState ui (MouseButton LeftButton)) (mouseMotionEvent ui)
     drag (Down, (x, _)) (Down, c) =
       (Down, (x, Just c))
     drag _ (s, c) =
@@ -264,4 +264,4 @@ main = do
     [With DisplayRGB
     ,Where DisplaySamples IsAtLeast 2
     ]
-  glutRun game
+  run game
