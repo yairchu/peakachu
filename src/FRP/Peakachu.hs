@@ -30,7 +30,9 @@ ereturn x = escanl (const id) x mempty
 edrop :: Integral i => i -> Event a -> Event a
 edrop count =
   fmap snd .
-  efilter ((> count) . fst) .
-  escanl step (0, undefined)
+  efilter ((== 0) . fst) .
+  escanl step (count+1, undefined)
   where
-    step (i, _) x = (i+1, x)
+    step (0, _) x = (0, x)
+    step (i, _) x = (i-1, x)
+
