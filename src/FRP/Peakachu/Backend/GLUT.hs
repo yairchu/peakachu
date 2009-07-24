@@ -4,21 +4,18 @@ module FRP.Peakachu.Backend.GLUT (
   Image(..), UI(..), run
   ) where
 
-import Control.Monad (unless)
-import Control.Monad.ListT (ListT(..), ListItem(..))
 import Data.Monoid (Monoid(..))
-import FRP.Peakachu (ereturn, ezip')
-import FRP.Peakachu.Internal (
-  Event(..), Time, makeCallbackEvent, makePollStateEvent)
+import FRP.Peakachu (ereturn)
+import FRP.Peakachu.Internal (Event(..), makeCallbackEvent, addHandler)
 import Graphics.UI.GLUT (
-  ($=), ($~), SettableStateVar,
+  ($=), ($~), SettableStateVar, get,
   ClearBuffer(..), Key(..), KeyState(..),
   Modifiers, Position(..), GLfloat, Size(..),
   DisplayMode(..), initialDisplayMode, swapBuffers,
   createWindow, getArgsAndInitialize,
-  displayCallback, idleCallback, keyboardMouseCallback,
+  displayCallback, keyboardMouseCallback,
   motionCallback, passiveMotionCallback,
-  get, windowSize,
+  windowSize,
   clear, flush, mainLoop, leaveMainLoop)
 import Prelude hiding (repeat)
 
@@ -45,46 +42,39 @@ makeCallbackEvent' callbackVar trans = do
 
 createUI :: IO UI
 createUI = do
-  windowSizeE <- makePollStateEvent (get windowSize)
+  --windowSizeE <- makePollStateEvent (get windowSize)
   glutMotionEvent <- makeCallbackEvent' motionCallback id
   glutPassiveMotionEvent <- makeCallbackEvent' passiveMotionCallback id
   glutKeyboardMouseE <-
     makeCallbackEvent' keyboardMouseCallback $
     \cb a b c d -> cb (a,b,c,d)
   return UI {
-    windowSizeEvent = windowSizeE,
+    --windowSizeEvent = windowSizeE,
     glutKeyboardMouseEvent = glutKeyboardMouseE,
     mouseMotionEvent =
       mappend (ereturn (0, 0)) . -- is there a way to get the initial mouse position?
       fmap pixel2gl .
-      ezip' windowSizeE $
+      --ezip' windowSizeE $
+      fmap ((,) (Size 600 600)) $
       mappend glutMotionEvent glutPassiveMotionEvent
   }
   where
     pixel2gl ((Size sx sy), (Position px py)) = (p2g sx px, - p2g sy py)
     p2g sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
 
-glutIdleCallback :: ListT IO [(Time, Image)] -> IO ()
-glutIdleCallback program = do
-  item <- runListT program
-  case item of
-    Nil -> leaveMainLoop
-    Cons items rest -> do
-      unless (null items) $ do
-        clear [ ColorBuffer ]
-        runImage . snd $ last items
-        swapBuffers
-        flush
-      idleCallback $= Just (glutIdleCallback rest)
+draw :: Image -> IO ()
+draw image = do
+  clear [ ColorBuffer ]
+  runImage image
+  swapBuffers
+  flush
 
 run :: (UI -> Event Image) -> IO ()
 run program = do
   _ <- getArgsAndInitialize
   initialDisplayMode $~ (DoubleBuffered:)
   createWindow "test"
-  (idleCallback $=) .
-    Just . glutIdleCallback .
-    runEvent . program =<< createUI
+  addHandler draw . program =<< createUI
   displayCallback $= return ()
   mainLoop
 
