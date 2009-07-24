@@ -218,17 +218,11 @@ chooseMove board src (dx, dy) =
       where
         (px, py) = board2screen pos
 
-main :: IO ()
-main = do
-  initialWindowSize $= Size 600 600
-  initialDisplayCapabilities $=
-    [With DisplayRGB
-    ,Where DisplaySamples IsAtLeast 2
-    ]
-  glutRun .
-    fmap draw .
-    ezip' board $
-    ezip' selection mouseMotionEvent
+game :: UI -> Event Image
+game ui =
+  fmap draw .
+  ezip' board $
+  ezip' selection (mouseMotionEvent ui)
   where
     board = escanl doMove chessStart moves
     procDst brd src = join . fmap (chooseMove brd src)
@@ -246,7 +240,7 @@ main = do
     selectionRaw =
       edrop 1 .
       escanl drag (Up, undefined) $
-      ezip' (keyState (MouseButton LeftButton)) mouseMotionEvent
+      ezip' (keyState (MouseButton LeftButton)) (mouseMotionEvent ui)
     drag (Down, (x, _)) (Down, c) =
       (Down, (x, Just c))
     drag _ (s, c) =
@@ -263,3 +257,11 @@ main = do
     moveFilter ((Down, _), (Up, _)) = True
     moveFilter _ = False
 
+main :: IO ()
+main = do
+  initialWindowSize $= Size 600 600
+  initialDisplayCapabilities $=
+    [With DisplayRGB
+    ,Where DisplaySamples IsAtLeast 2
+    ]
+  glutRun game

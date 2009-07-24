@@ -1,8 +1,7 @@
 {-# OPTIONS -O2 -Wall #-}
 
 module FRP.Peakachu.Backend.GLUT (
-  Image(..), glutRun,
-  mouseMotionEvent,
+  Image(..), UI(..), glutRun,
   glKeyboardMouseEvent, glMotionEvent, glPassiveMotionEvent,
   ) where
 
@@ -30,6 +29,11 @@ instance Monoid Image where
   mempty = Image $ return ()
   mappend (Image a) (Image b) = Image $ a >> b
 
+data UI = UI {
+  windowSizeEvent :: Event Size,
+  mouseMotionEvent :: Event (GLfloat, GLfloat)
+  }
+
 glKeyboardMouseEvent :: Event (Key, KeyState, Modifiers, Position)
 glKeyboardMouseEvent =
   unsafePerformIO $ do
@@ -52,21 +56,20 @@ glPassiveMotionEvent =
     passiveMotionCallback $= Just callback
     return event
 
-windowSizeEvent :: Event Size
-windowSizeEvent =
-  unsafePerformIO .
-  makePollStateEvent $
-  get windowSize
-
-mouseMotionEvent :: Event (GLfloat, GLfloat)
-mouseMotionEvent =
-  mappend (ereturn (0, 0)) . -- is there a way to get the initial mouse position?
-  fmap f .
-  ezip' windowSizeEvent $
-  mappend glMotionEvent glPassiveMotionEvent
+createUI :: IO UI
+createUI = do
+  windowSizeE <- makePollStateEvent (get windowSize)
+  return UI {
+    windowSizeEvent = windowSizeE,
+    mouseMotionEvent =
+      mappend (ereturn (0, 0)) . -- is there a way to get the initial mouse position?
+      fmap pixel2gl .
+      ezip' windowSizeE $
+      mappend glMotionEvent glPassiveMotionEvent
+  }
   where
-    f ((Size sx sy), (Position px py)) = (r sx px, - r sy py)
-    r sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
+    pixel2gl ((Size sx sy), (Position px py)) = (p2g sx px, - p2g sy py)
+    p2g sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
 
 glutIdleCallback :: ListT IO [(Time, Image)] -> IO ()
 glutIdleCallback program = do
@@ -81,12 +84,14 @@ glutIdleCallback program = do
         flush
       idleCallback $= Just (glutIdleCallback rest)
 
-glutRun :: Event Image -> IO ()
+glutRun :: (UI -> Event Image) -> IO ()
 glutRun program = do
   _ <- getArgsAndInitialize
   initialDisplayMode $~ (DoubleBuffered:)
   createWindow "test"
-  idleCallback $= Just (glutIdleCallback (runEvent program))
+  (idleCallback $=) .
+    Just . glutIdleCallback .
+    runEvent . program =<< createUI
   displayCallback $= return ()
   mainLoop
 
