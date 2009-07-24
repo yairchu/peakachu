@@ -3,12 +3,8 @@ Version:             0.1
 Category:            FRP
 Synopsis:            An FRP library with a GLUT backend
 Description:
-  An experiemental FRP library.
+  An experiemental simple FRP library.
   GLUT backend included.
-
-  Compared to Reactive:
-  * No threads.
-  * Just Events, no Behaviours etc.
 License:             BSD3
 License-file:        LICENSE
 Author:              Yair Chuchem
