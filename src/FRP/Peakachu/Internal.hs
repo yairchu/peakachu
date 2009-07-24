@@ -5,14 +5,16 @@ module FRP.Peakachu.Internal (
   makeCallbackEvent, makePollStateEvent, memoEvent
   ) where
 
-import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
+import Control.Concurrent.MVar (newMVar, putMVar, readMVar, takeMVar)
+import Control.Monad (unless)
 import Control.Monad.ListT (ListItem(..), ListT(..))
+import Data.Foldable (Foldable, all, toList)
 import Data.List.Class (
   cons, joinM, joinL, merge2On, repeat, scanl)
 import Data.Monoid (Monoid(..))
 
 import System.Time (ClockTime, getClockTime)
-import Prelude hiding (repeat, scanl)
+import Prelude hiding (all, null, repeat, scanl)
 
 type Time = ClockTime
 
@@ -89,18 +91,27 @@ memoEvent event = do
         putMVar var mx
         return x
 
+null :: Foldable t => t a -> Bool
+null = all (const False)
+
 makeCallbackEvent :: IO (Event a, a -> IO ())
 makeCallbackEvent = do
-  queueVar <- newMVar []
-  event <- memoEvent . Event . joinM . repeat $ do
-    queue <- takeMVar queueVar
-    putMVar queueVar []
-    return $ reverse queue
+  queueVar <- newMVar Nothing
+  eventVar <-
+    (newMVar . runEvent =<<) .
+    memoEvent . Event .
+    joinM . repeat $ do
+      queue <- takeMVar queueVar
+      putMVar queueVar Nothing
+      return $ toList queue
   let
     callback x = do
       now <- getClockTime
       queue <- takeMVar queueVar
-      putMVar queueVar ((now, x) : queue)
+      unless (null queue) $
+        putMVar eventVar . tailL =<< runListT =<< takeMVar eventVar
+      putMVar queueVar $ Just (now, x)
+    event = Event . joinL $ readMVar eventVar
   return (event, callback)
 
 makePollStateEvent :: Eq a => IO a -> IO (Event a)
