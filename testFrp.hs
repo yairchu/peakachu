@@ -86,11 +86,14 @@ draw (board, ((dragSrc, dragDst), cpos@(cx, cy))) =
     cullFace $= Nothing
     drawBoard
     forM_ (boardPieces board) drawPiece
-    when srcFirst $ drawCursor dragSrc
+    when (srcFirst dragDst) $ drawCursor dragSrc
     forM_ dragDst drawCursor
-    unless srcFirst $ drawCursor dragSrc
+    unless (srcFirst dragDst) $ drawCursor dragSrc
   where
-    srcFirst = screen2board cpos == dragSrc
+    srcFirst Nothing = True
+    srcFirst (Just dst) = cursorDist dragSrc < cursorDist dst
+    cursorDist = cursorDist' . board2screen
+    cursorDist' (x, y) = (cx-x)^2 + (cy-y)^2
     headingUp = normal $ Normal3 0 0 (-1 :: GLfloat)
     drawPiece piece = do
       let
