@@ -1,11 +1,12 @@
 {-# OPTIONS -O2 -Wall #-}
 
 module FRP.Peakachu (
-  Event, escanl, efilter,
+  Event, SideEffect,
+  escanl, efilter,
   edrop, ereturn, ezip, ezip'
   ) where
 
-import FRP.Peakachu.Internal (Event, escanl, efilter)
+import FRP.Peakachu.Internal (Event, SideEffect, escanl, efilter)
 import Data.Monoid (mappend, mempty)
 
 ezip :: Event a -> Event b -> Event (Maybe a, Maybe b)

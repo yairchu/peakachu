@@ -65,15 +65,16 @@ draw image = do
   swapBuffers
   flush
 
-run :: (UI -> Event Image) -> SideEffect -> IO ()
-run programDesc effect = do
+run :: (UI -> (Event Image, SideEffect)) -> IO ()
+run programDesc = do
   _ <- getArgsAndInitialize
   initialDisplayMode $~ (DoubleBuffered:)
   createWindow "test"
   displayCallback $= return ()
-  program <- runEvent =<< fmap programDesc createUI
-  mapM_ draw (initialValues program)
-  addHandler program draw
-  executeSideEffect effect
+  (imageE, sideEffect) <- fmap programDesc createUI
+  image <- runEvent imageE
+  mapM_ draw (initialValues image)
+  addHandler image draw
+  executeSideEffect sideEffect
   mainLoop
 
