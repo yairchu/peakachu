@@ -1,6 +1,7 @@
 module FRP.Peakachu.Internal (
-  Event(..), EventEval(..),
+  Event(..), EventEval(..), SideEffect(..),
   escanl, efilter, ejoin,
+  executeSideEffect,
   makeCallbackEvent
   ) where
 
@@ -15,6 +16,8 @@ data EventEval a = EventEval {
 }
 
 newtype Event a = Event { runEvent :: IO (EventEval a) }
+
+newtype SideEffect = SideEffect { runSideEffect :: Event (IO ()) }
 
 instance Functor EventEval where
   fmap func event =
@@ -43,6 +46,10 @@ instance Functor Event where
 instance Monoid (Event a) where
   mempty = Event $ return mempty
   mappend x y = Event $ liftM2 mappend (runEvent x) (runEvent y)
+
+instance Monoid SideEffect where
+  mempty = SideEffect mempty
+  mappend x y = SideEffect $ mappend (runSideEffect x) (runSideEffect y)
 
 escanl :: (a -> b -> a) -> a -> Event b -> Event a
 escanl step startVal event =
@@ -100,4 +107,9 @@ ejoin event =
       addHandler = addHandler ev . srcHandler,
       initialValues = initVals
       }
+
+executeSideEffect :: SideEffect -> IO ()
+executeSideEffect effect = do
+  ev <- runEvent . ejoin . runSideEffect $ effect
+  addHandler ev . const $ return ()
 

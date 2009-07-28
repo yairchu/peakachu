@@ -4,7 +4,9 @@ module FRP.Peakachu.Backend.GLUT (
 
 import Data.Monoid (Monoid(..))
 import FRP.Peakachu (ereturn)
-import FRP.Peakachu.Internal (Event(..), EventEval(..), makeCallbackEvent)
+import FRP.Peakachu.Internal (
+  Event(..), EventEval(..), SideEffect,
+  executeSideEffect, makeCallbackEvent)
 import Graphics.UI.GLUT (
   ($=), ($~), SettableStateVar, get,
   ClearBuffer(..), Key(..), KeyState(..),
@@ -63,14 +65,15 @@ draw image = do
   swapBuffers
   flush
 
-run :: (UI -> Event Image) -> IO ()
-run programDesc = do
+run :: (UI -> Event Image) -> SideEffect -> IO ()
+run programDesc effect = do
   _ <- getArgsAndInitialize
   initialDisplayMode $~ (DoubleBuffered:)
   createWindow "test"
+  displayCallback $= return ()
   program <- runEvent =<< fmap programDesc createUI
   mapM_ draw (initialValues program)
   addHandler program draw
-  displayCallback $= return ()
+  executeSideEffect effect
   mainLoop
 
