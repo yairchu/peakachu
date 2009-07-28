@@ -1,12 +1,10 @@
-{-# OPTIONS -O2 -Wall #-}
-
 module FRP.Peakachu.Backend.GLUT (
   Image(..), UI(..), run
   ) where
 
 import Data.Monoid (Monoid(..))
 import FRP.Peakachu (ereturn)
-import FRP.Peakachu.Internal (Event(..), makeCallbackEvent)
+import FRP.Peakachu.Internal (Event(..), EventEval(..), makeCallbackEvent)
 import Graphics.UI.GLUT (
   ($=), ($~), SettableStateVar, get,
   ClearBuffer(..), Key(..), KeyState(..),
@@ -70,7 +68,7 @@ run programDesc = do
   _ <- getArgsAndInitialize
   initialDisplayMode $~ (DoubleBuffered:)
   createWindow "test"
-  program <- fmap programDesc createUI
+  program <- runEvent =<< fmap programDesc createUI
   mapM_ draw (initialValues program)
   addHandler program draw
   displayCallback $= return ()
