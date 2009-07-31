@@ -13,7 +13,8 @@ import Graphics.UI.GLUT (
   Modifiers, Position(..), GLfloat, Size(..),
   DisplayMode(..), initialDisplayMode, swapBuffers,
   createWindow, getArgsAndInitialize,
-  displayCallback, keyboardMouseCallback,
+  displayCallback, idleCallback,
+  keyboardMouseCallback,
   motionCallback, passiveMotionCallback,
   windowSize,
   clear, flush, mainLoop)
@@ -27,7 +28,8 @@ instance Monoid Image where
 
 data UI = UI {
   mouseMotionEvent :: Event (GLfloat, GLfloat),
-  glutKeyboardMouseEvent :: Event (Key, KeyState, Modifiers, Position)
+  glutKeyboardMouseEvent :: Event (Key, KeyState, Modifiers, Position),
+  glutIdleEvent :: Event ()
   }
 
 makeCallbackEvent' ::
@@ -47,11 +49,13 @@ createUI = do
   glutKeyboardMouseE <-
     makeCallbackEvent' keyboardMouseCallback $
     \cb a b c d -> cb (a,b,c,d)
+  glutIdleE <- makeCallbackEvent' idleCallback ($ ())
   let
     pixel2gl (Position px py) = (p2g sx px, - p2g sy py)
     p2g sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
   return UI {
     glutKeyboardMouseEvent = glutKeyboardMouseE,
+    glutIdleEvent = glutIdleE,
     mouseMotionEvent =
       mappend (ereturn (0, 0)) . -- is there a way to get the initial mouse position?
       fmap pixel2gl $
