@@ -1,16 +1,19 @@
 module FRP.Peakachu.Backend.GLUT (
-  Image(..), UI(..), run
+  GlutEvent(..), Image(..), UI,
+  glutIdleEvent, glutKeyboardMouseEvent, mouseMotionEvent,
+  run
   ) where
 
+import Data.Maybe (fromJust, isJust)
 import Data.Monoid (Monoid(..))
-import FRP.Peakachu (ereturn)
+import FRP.Peakachu (efilter, ereturn)
 import FRP.Peakachu.Internal (
   Event(..), EventEval(..), SideEffect,
   executeSideEffect, makeCallbackEvent)
 import Graphics.UI.GLUT (
   ($=), ($~), SettableStateVar, get,
   ClearBuffer(..), Key(..), KeyState(..),
-  Modifiers, Position(..), GLfloat, Size(..),
+  Modifiers, Position(..), Size(..),
   DisplayMode(..), initialDisplayMode, swapBuffers,
   createWindow, getArgsAndInitialize,
   displayCallback, idleCallback,
@@ -18,7 +21,6 @@ import Graphics.UI.GLUT (
   motionCallback, passiveMotionCallback,
   windowSize,
   clear, flush, mainLoop)
-import Prelude hiding (repeat)
 
 data Image = Image { runImage :: IO ()}
 
@@ -26,17 +28,18 @@ instance Monoid Image where
   mempty = Image $ return ()
   mappend (Image a) (Image b) = Image $ a >> b
 
-data UI = UI {
-  mouseMotionEvent :: Event (GLfloat, GLfloat),
-  glutKeyboardMouseEvent :: Event (Key, KeyState, Modifiers, Position),
-  glutIdleEvent :: Event ()
-  }
+data GlutEvent =
+  IdleEvent
+  | MouseMotionEvent Float Float
+  | KeyboardMouseEvent Key KeyState Modifiers Position
 
-makeCallbackEvent' ::
+type UI = Event GlutEvent
+
+glutCallbackEvent ::
   SettableStateVar (Maybe b) ->
   ((a -> IO ()) -> b) ->
   IO (Event a)
-makeCallbackEvent' callbackVar trans = do
+glutCallbackEvent callbackVar trans = do
   (event, callback) <- makeCallbackEvent
   callbackVar $= Just (trans callback)
   return event
@@ -44,23 +47,46 @@ makeCallbackEvent' callbackVar trans = do
 createUI :: IO UI
 createUI = do
   Size sx sy <- get windowSize
-  glutMotionEvent <- makeCallbackEvent' motionCallback id
-  glutPassiveMotionEvent <- makeCallbackEvent' passiveMotionCallback id
-  glutKeyboardMouseE <-
-    makeCallbackEvent' keyboardMouseCallback $
-    \cb a b c d -> cb (a,b,c,d)
-  glutIdleE <- makeCallbackEvent' idleCallback ($ ())
   let
-    pixel2gl (Position px py) = (p2g sx px, - p2g sy py)
+    pixel2gl cb (Position px py) =
+      cb $ MouseMotionEvent (p2g sx px) (- p2g sy py)
     p2g sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
-  return UI {
-    glutKeyboardMouseEvent = glutKeyboardMouseE,
-    glutIdleEvent = glutIdleE,
-    mouseMotionEvent =
-      mappend (ereturn (0, 0)) . -- is there a way to get the initial mouse position?
-      fmap pixel2gl $
-      mappend glutMotionEvent glutPassiveMotionEvent
-  }
+    kbMouse cb key keyState mods pos =
+      cb $ KeyboardMouseEvent key keyState mods pos
+  fmap mconcat $ sequence
+    [ return (ereturn (MouseMotionEvent 0 0))
+    , glutCallbackEvent motionCallback pixel2gl
+    , glutCallbackEvent passiveMotionCallback pixel2gl
+    , glutCallbackEvent idleCallback ($ IdleEvent)
+    , glutCallbackEvent keyboardMouseCallback kbMouse
+    ]
+
+-- Event is not a MonadPlus so can't use a generic mapMaybe
+eMapMaybe :: (a -> Maybe b) -> Event a -> Event b
+eMapMaybe func event =
+  fmap fromJust . efilter isJust $ fmap func event
+
+mouseMotionEvent :: UI -> Event (Float, Float)
+mouseMotionEvent =
+  eMapMaybe f
+  where
+    f (MouseMotionEvent x y) = Just (x, y)
+    f _ = Nothing
+
+glutKeyboardMouseEvent ::
+  UI -> Event (Key, KeyState, Modifiers, Position)
+glutKeyboardMouseEvent =
+  eMapMaybe f
+  where
+    f (KeyboardMouseEvent k s m p) = Just (k, s, m, p)
+    f _ = Nothing
+
+glutIdleEvent :: UI -> Event ()
+glutIdleEvent =
+  eMapMaybe f
+  where
+    f IdleEvent = Just ()
+    f _ = Nothing
 
 draw :: Image -> IO ()
 draw image = do
@@ -81,4 +107,3 @@ run programDesc = do
   addHandler image draw
   executeSideEffect sideEffect
   mainLoop
-
