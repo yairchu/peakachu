@@ -51,8 +51,8 @@ createUI = do
     pixel2gl cb (Position px py) =
       cb $ MouseMotionEvent (p2g sx px) (- p2g sy py)
     p2g sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
-    kbMouse cb key keyState mods pos =
-      cb $ KeyboardMouseEvent key keyState mods pos
+    kbMouse cb key keyState mods =
+      cb . KeyboardMouseEvent key keyState mods
   fmap mconcat $ sequence
     [ return (ereturn (MouseMotionEvent 0 0))
     , glutCallbackEvent motionCallback pixel2gl
@@ -63,8 +63,8 @@ createUI = do
 
 -- Event is not a MonadPlus so can't use a generic mapMaybe
 eMapMaybe :: (a -> Maybe b) -> Event a -> Event b
-eMapMaybe func event =
-  fmap fromJust . efilter isJust $ fmap func event
+eMapMaybe func =
+  fmap fromJust . efilter isJust . fmap func
 
 mouseMotionEvent :: UI -> Event (Float, Float)
 mouseMotionEvent =

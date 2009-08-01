@@ -37,7 +37,7 @@ instance Monoid (EventEval a) where
       addHandler = \handler -> do
         addHandler x handler
         addHandler y handler,
-      initialValues = (initialValues x) ++ (initialValues y)
+      initialValues = initialValues x ++ initialValues y
     }
 
 instance Functor Event where
