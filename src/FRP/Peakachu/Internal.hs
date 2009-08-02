@@ -7,7 +7,7 @@ module FRP.Peakachu.Internal (
 
 import Control.Concurrent.MVar (
   newMVar, putMVar, readMVar, takeMVar)
-import Control.Monad (liftM2, when)
+import Control.Monad (when)
 import Data.Monoid (Monoid(..))
 
 data EventEval a = EventEval {
@@ -19,33 +19,31 @@ newtype Event a = Event { runEvent :: IO (EventEval a) }
 
 newtype SideEffect = SideEffect { runSideEffect :: Event (IO ()) }
 
-instance Functor EventEval where
+instance Functor Event where
   fmap func event =
-    EventEval {
-      addHandler = addHandler event . (. func),
-      initialValues = map func (initialValues event)
-    }
+    Event $ do
+      ev <- runEvent event
+      return EventEval {
+        addHandler = addHandler ev . (. func),
+        initialValues = map func (initialValues ev)
+      }
 
-instance Monoid (EventEval a) where
+instance Monoid (Event a) where
   mempty =
-    EventEval {
+    Event . return $ EventEval {
       addHandler = const (return ()),
       initialValues = []
     }
-  mappend x y =
-    EventEval {
-      addHandler = \handler -> do
-        addHandler x handler
-        addHandler y handler,
-      initialValues = initialValues x ++ initialValues y
-    }
-
-instance Functor Event where
-  fmap func = Event . fmap (fmap func) . runEvent
-
-instance Monoid (Event a) where
-  mempty = Event $ return mempty
-  mappend x y = Event $ liftM2 mappend (runEvent x) (runEvent y)
+  mappend ex ey =
+    Event $ do
+      x <- runEvent ex
+      y <- runEvent ey
+      return EventEval {
+        addHandler = \handler -> do
+          addHandler x handler
+          addHandler y handler,
+        initialValues = initialValues x ++ initialValues y
+      }
 
 instance Monoid SideEffect where
   mempty = SideEffect mempty
