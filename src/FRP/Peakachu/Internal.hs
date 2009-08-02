@@ -1,6 +1,6 @@
 module FRP.Peakachu.Internal (
   Event(..), EventEval(..), SideEffect(..),
-  escanl, efilter, ejoin,
+  escanl, efilter, ejoin, empty, merge,
   executeSideEffect,
   makeCallbackEvent
   ) where
@@ -28,26 +28,29 @@ instance Functor Event where
         initialValues = map func (initialValues ev)
       }
 
-instance Monoid (Event a) where
-  mempty =
-    Event . return $ EventEval {
-      addHandler = const (return ()),
-      initialValues = []
-    }
-  mappend ex ey =
-    Event $ do
-      x <- runEvent ex
-      y <- runEvent ey
-      return EventEval {
-        addHandler = \handler -> do
-          addHandler x handler
-          addHandler y handler,
-        initialValues = initialValues x ++ initialValues y
-      }
+empty :: Event a
+empty =
+ Event . return $ EventEval {
+   addHandler = const (return ()),
+   initialValues = []
+ }
 
+merge :: Event a -> Event a -> Event a
+merge ex ey =
+  Event $ do
+    x <- runEvent ex
+    y <- runEvent ey
+    return EventEval {
+      addHandler = \handler -> do
+        addHandler x handler
+        addHandler y handler,
+      initialValues = initialValues x ++ initialValues y
+    }
+
+-- there is only one Monoid for SideEffect that makes sense
 instance Monoid SideEffect where
-  mempty = SideEffect mempty
-  mappend x y = SideEffect $ mappend (runSideEffect x) (runSideEffect y)
+  mempty = SideEffect empty
+  mappend x y = SideEffect $ merge (runSideEffect x) (runSideEffect y)
 
 escanl :: (a -> b -> a) -> a -> Event b -> Event a
 escanl step startVal event =

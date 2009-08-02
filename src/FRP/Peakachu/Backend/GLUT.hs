@@ -6,7 +6,7 @@ module FRP.Peakachu.Backend.GLUT (
 
 import Data.Maybe (fromJust, isJust)
 import Data.Monoid (Monoid(..))
-import FRP.Peakachu (efilter, ereturn)
+import FRP.Peakachu (EventMerge(..), efilter, ereturn)
 import FRP.Peakachu.Internal (
   Event(..), EventEval(..), SideEffect,
   executeSideEffect, makeCallbackEvent)
@@ -53,7 +53,7 @@ createUI = do
     p2g sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
     kbMouse cb key keyState mods =
       cb . KeyboardMouseEvent key keyState mods
-  fmap mconcat $ sequence
+  fmap (runEventMerge . mconcat . map EventMerge) $ sequence
     [ return (ereturn (MouseMotionEvent 0 0))
     , glutCallbackEvent motionCallback pixel2gl
     , glutCallbackEvent passiveMotionCallback pixel2gl
@@ -107,3 +107,4 @@ run programDesc = do
   addHandler image draw
   executeSideEffect sideEffect
   mainLoop
+
