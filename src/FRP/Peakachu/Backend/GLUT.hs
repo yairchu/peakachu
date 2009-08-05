@@ -101,4 +101,3 @@ run programDesc = do
   addHandler image draw
   executeSideEffect sideEffect
   mainLoop
-

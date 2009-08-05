@@ -35,4 +35,3 @@ readFileE = ejoin . fmap strictReadFile
 
 writeFileE :: Event (FilePath, String) -> SideEffect
 writeFileE = SideEffect . fmap (uncurry writeFile)
-
