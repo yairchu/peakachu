@@ -4,9 +4,8 @@ module FRP.Peakachu.Backend.GLUT (
   run
   ) where
 
-import Data.Maybe (fromJust, isJust)
 import Data.Monoid (Monoid(..))
-import FRP.Peakachu (EventMerge(..), efilter, ereturn)
+import FRP.Peakachu (EventMerge(..), ereturn, eMapMaybe)
 import FRP.Peakachu.Internal (
   Event(..), EventEval(..), SideEffect,
   executeSideEffect, makeCallbackEvent)
@@ -60,11 +59,6 @@ createUI = do
     , glutCallbackEvent idleCallback ($ IdleEvent)
     , glutCallbackEvent keyboardMouseCallback kbMouse
     ]
-
--- Event is not a MonadPlus so can't use a generic mapMaybe
-eMapMaybe :: (a -> Maybe b) -> Event a -> Event b
-eMapMaybe func =
-  fmap fromJust . efilter isJust . fmap func
 
 mouseMotionEvent :: UI -> Event (Float, Float)
 mouseMotionEvent =

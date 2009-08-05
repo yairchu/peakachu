@@ -2,9 +2,11 @@ module FRP.Peakachu (
   Event, SideEffect,
   EventMerge(..), EventZip(..),
   escanl, efilter,
-  edrop, ereturn, ezip, ezip'
+  edrop, ereturn, eMapMaybe,
+  ezip, ezip', eZipWith
   ) where
 
+import Data.Maybe (fromJust, isJust)
 import Data.Monoid (Monoid(..))
 import FRP.Peakachu.Internal (
   Event, SideEffect, escanl, efilter, empty, merge)
@@ -59,4 +61,9 @@ edrop count =
   where
     step (0, _) x = (0, x)
     step (i, _) x = (i-1, x)
+
+-- Event is not a MonadPlus so can't use a generic mapMaybe
+eMapMaybe :: (a -> Maybe b) -> Event a -> Event b
+eMapMaybe func =
+  fmap fromJust . efilter isJust . fmap func
 
