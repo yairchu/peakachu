@@ -92,5 +92,6 @@ ejoin :: Event (IO a) -> Event a
 ejoin = inEvent (join . liftM lift)
 
 executeSideEffect :: SideEffect -> IO ()
-executeSideEffect = mempty . runContT . runEvent . runSideEffect
+executeSideEffect =
+  ($ mempty) . setHandler . ejoin . runSideEffect
 
