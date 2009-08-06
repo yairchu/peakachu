@@ -1,9 +1,9 @@
 module FRP.Peakachu.Internal (
-  Event(..), SideEffect(..),
+  Event(..), inEvent, SideEffect(..),
   escanl, efilter, ejoin, empty, merge,
   executeSideEffect,
   makeCallbackEvent,
-  argument, eventBoo -- NEED BETTER NAME!
+  argument
   ) where
 
 import Control.Concurrent.MVar (
@@ -14,28 +14,32 @@ import Control.Applicative (liftA2)
 import Control.Instances () -- Conal's TypeCompose instances
 import Data.Monoid (Monoid(..))
 
-newtype Event a = Event { runEvent :: (a -> IO ()) -> IO () }
+type InEvent a = (a -> IO ()) -> IO ()
+newtype Event a = Event { runEvent :: InEvent a }
+inEvent :: (InEvent a -> InEvent b) -> Event a -> Event b
+inEvent func = Event . func . runEvent
 
 newtype SideEffect = SideEffect { runSideEffect :: Event (IO ()) }
 
--- there is a name for this and it isn't boo.
--- what is the name? it's like in matrices "boo A B = A*B*(A^-1)"..
--- I remember there's a name for this..
-eventBoo :: (((a -> IO ()) -> IO ()) -> ((b -> IO ()) -> IO ())) -> Event a -> Event b
-eventBoo func = Event . func . runEvent
-
 -- from Conal's semantic editor combinators
+result :: (a -> b) -> (c -> a) -> (c -> b)
+result = (.)
 argument :: (a -> b) -> (b -> c) -> (a -> c)
 argument = flip (.)
 
 instance Functor Event where
-  fmap = eventBoo . argument . argument
+  fmap = inEvent . argument . argument
 
 empty :: Event a
 empty = Event (const mempty)
 
+inEvent2 ::
+  (InEvent a -> InEvent b -> InEvent c) ->
+  Event a -> Event b -> Event c
+inEvent2 = result inEvent . argument runEvent
+
 merge :: Event a -> Event a -> Event a
-merge x y = Event $ runEvent x `mappend` runEvent y
+merge = inEvent2 mappend
 
 -- This is the natural Monoid if SideEffect was a MergeEvent, but
 -- MergeEvent is unusable here
@@ -57,7 +61,7 @@ escanl step startVal event =
     runEvent event srcHandler
 
 efilter :: (a -> Bool) -> Event a -> Event a
-efilter = eventBoo . argument . liftA2 when
+efilter = inEvent . argument . liftA2 when
 
 makeCallbackEvent :: IO (Event a, a -> IO ())
 makeCallbackEvent = do
@@ -70,7 +74,7 @@ makeCallbackEvent = do
   return (Event addHandler, srcHandler)
 
 ejoin :: Event (IO a) -> Event a
-ejoin = eventBoo $ argument (=<<)
+ejoin = inEvent $ argument (=<<)
 
 executeSideEffect :: SideEffect -> IO ()
 executeSideEffect =

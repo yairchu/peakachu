@@ -7,9 +7,9 @@ module FRP.Peakachu.Backend.GLUT (
 import Data.Monoid (Monoid(..))
 import FRP.Peakachu (EventMerge(..), ereturn, eMapMaybe)
 import FRP.Peakachu.Internal (
-  Event(..), SideEffect,
+  Event(..), inEvent, SideEffect,
   executeSideEffect, makeCallbackEvent,
-  eventBoo, argument)
+  argument)
 import Graphics.UI.GLUT (
   ($=), ($~), SettableStateVar, get,
   ClearBuffer(..), Key(..), KeyState(..),
@@ -92,7 +92,7 @@ draw image = do
 
 setTimerEvent :: Event (Timeout, a) -> Event a
 setTimerEvent =
-  eventBoo $ argument go
+  inEvent $ argument go
   where
     go cb (timeOut, val) =
       addTimerCallback timeOut (cb val)
