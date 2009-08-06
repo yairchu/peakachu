@@ -1,6 +1,6 @@
 module FRP.Peakachu.Internal (
   Event(..), inEvent, SideEffect(..),
-  escanl, efilter, ejoin, empty, merge,
+  escanl, efilter, empty, merge,
   executeSideEffect,
   makeCallbackEvent,
   mkEvent, inMkEvent, setHandler, inEvent2
@@ -9,7 +9,7 @@ module FRP.Peakachu.Internal (
 import Control.Applicative (liftA2)
 import Control.Concurrent.MVar (
   newMVar, modifyMVar_, putMVar, readMVar, takeMVar)
-import Control.Monad (join, liftM, when)
+import Control.Monad (when)
 import Control.Monad.Cont (ContT(..))
 import Control.Monad.Cont.Monoid (inContT)
 import Control.Monad.Instances ()
@@ -88,10 +88,6 @@ makeCallbackEvent = do
       modifyMVar_ dstHandlersVar . result return . (:)
   return (event, srcHandler)
 
-ejoin :: Event (IO a) -> Event a
-ejoin = inEvent (join . liftM lift)
-
 executeSideEffect :: SideEffect -> IO ()
-executeSideEffect =
-  ($ mempty) . setHandler . ejoin . runSideEffect
+executeSideEffect = (`setHandler` id) . runSideEffect
 

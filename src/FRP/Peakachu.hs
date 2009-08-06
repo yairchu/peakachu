@@ -1,5 +1,5 @@
 module FRP.Peakachu (
-  Event, SideEffect,
+  EffectfulFunc, Event, SideEffect,
   EventMerge(..), EventZip(..),
   escanl, efilter,
   edrop, ereturn, eMapMaybe,
@@ -16,6 +16,8 @@ newtype EventMerge a = EventMerge { runEventMerge :: Event a }
 
 -- | Monoid for mappending inner Monoids of events
 newtype EventZip a = EventZip { runEventZip :: Event a }
+
+type EffectfulFunc i o a = (Event (i, a) -> SideEffect, Event (o, a))
 
 instance Functor EventMerge where
   fmap f = EventMerge . fmap f . runEventMerge
