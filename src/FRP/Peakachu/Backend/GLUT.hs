@@ -1,9 +1,10 @@
 module FRP.Peakachu.Backend.GLUT (
   GlutEvent(..), Image(..), UI,
   glutIdleEvent, glutKeyboardMouseEvent, mouseMotionEvent,
-  run
+  setTimerEvent, run
   ) where
 
+import Control.Monad (forM_)
 import Data.Monoid (Monoid(..))
 import FRP.Peakachu (EventMerge(..), ereturn, eMapMaybe)
 import FRP.Peakachu.Internal (
@@ -12,13 +13,13 @@ import FRP.Peakachu.Internal (
 import Graphics.UI.GLUT (
   ($=), ($~), SettableStateVar, get,
   ClearBuffer(..), Key(..), KeyState(..),
-  Modifiers, Position(..), Size(..),
+  Modifiers, Position(..), Size(..), Timeout,
   DisplayMode(..), initialDisplayMode, swapBuffers,
   createWindow, getArgsAndInitialize,
   displayCallback, idleCallback,
   keyboardMouseCallback,
   motionCallback, passiveMotionCallback,
-  windowSize,
+  windowSize, addTimerCallback,
   clear, flush, mainLoop)
 
 data Image = Image { runImage :: IO ()}
@@ -88,6 +89,22 @@ draw image = do
   runImage image
   swapBuffers
   flush
+
+setTimerEvent :: Event (Timeout, a) -> Event a
+setTimerEvent event =
+  Event $ do
+    ev <- runEvent event
+    let
+      addHand handler = do
+        (forM_ . initialValues) ev (go handler)
+        addHandler ev (go handler)
+    return EventEval {
+      addHandler = addHand,
+      initialValues = []
+    }
+  where
+    go cb (timeOut, val) =
+      addTimerCallback timeOut (cb val)
 
 run :: (UI -> (Event Image, SideEffect)) -> IO ()
 run programDesc = do
