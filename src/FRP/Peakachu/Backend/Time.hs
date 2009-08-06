@@ -2,13 +2,14 @@ module FRP.Peakachu.Backend.Time (
   timeOf, zipTime
   ) where
 
-import FRP.Peakachu.Internal (Event(..), inEvent, argument)
+import Control.SECombinator (argument)
+import FRP.Peakachu.Internal (Event(..), inMkEvent)
 
 import Data.Time.Clock (UTCTime, getCurrentTime)
 
 zipTime :: Event a -> Event (UTCTime, a)
 zipTime =
-  inEvent $ argument srcHandler
+  inMkEvent $ argument srcHandler
   where
     srcHandler handler val = do
       now <- getCurrentTime

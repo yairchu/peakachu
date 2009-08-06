@@ -4,12 +4,14 @@ module FRP.Peakachu.Backend.GLUT (
   setTimerEvent, run
   ) where
 
-import Data.Monoid (Monoid(..))
+import Control.SECombinator (argument)
 import FRP.Peakachu (EventMerge(..), ereturn, eMapMaybe)
 import FRP.Peakachu.Internal (
-  Event(..), inEvent, SideEffect,
-  executeSideEffect, makeCallbackEvent,
-  argument)
+  Event, SideEffect,
+  inMkEvent, setHandler,
+  executeSideEffect, makeCallbackEvent)
+
+import Data.Monoid (Monoid(..))
 import Graphics.UI.GLUT (
   ($=), ($~), SettableStateVar, get,
   ClearBuffer(..), Key(..), KeyState(..),
@@ -92,7 +94,7 @@ draw image = do
 
 setTimerEvent :: Event (Timeout, a) -> Event a
 setTimerEvent =
-  inEvent $ argument go
+  inMkEvent $ argument go
   where
     go cb (timeOut, val) =
       addTimerCallback timeOut (cb val)
@@ -104,7 +106,7 @@ run programDesc = do
   createWindow "test"
   displayCallback $= return ()
   (imageE, sideEffect) <- fmap programDesc createUI
-  runEvent imageE draw
+  setHandler imageE draw
   executeSideEffect sideEffect
   mainLoop
 

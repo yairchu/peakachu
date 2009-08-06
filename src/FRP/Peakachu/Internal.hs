@@ -3,40 +3,52 @@ module FRP.Peakachu.Internal (
   escanl, efilter, ejoin, empty, merge,
   executeSideEffect,
   makeCallbackEvent,
-  argument
+  mkEvent, inMkEvent, setHandler, inEvent2
   ) where
 
+import Control.Applicative (liftA2)
 import Control.Concurrent.MVar (
   newMVar, modifyMVar_, putMVar, readMVar, takeMVar)
-import Control.Monad (when)
+import Control.Monad (join, liftM, when)
+import Control.Monad.Cont (ContT(..))
+import Control.Monad.Cont.Monoid (inContT)
 import Control.Monad.Instances ()
-import Control.Applicative (liftA2)
+import Control.Monad.Trans (lift)
 import Control.Instances () -- Conal's TypeCompose instances
+import Control.SECombinator (argument, result)
 import Data.Monoid (Monoid(..))
 
-type InEvent a = (a -> IO ()) -> IO ()
+type InEvent a = ContT () IO a
+
 newtype Event a = Event { runEvent :: InEvent a }
+
 inEvent :: (InEvent a -> InEvent b) -> Event a -> Event b
 inEvent func = Event . func . runEvent
 
-newtype SideEffect = SideEffect { runSideEffect :: Event (IO ()) }
+mkEvent :: ((a -> IO ()) -> IO ()) -> Event a
+mkEvent = Event . ContT
 
--- from Conal's semantic editor combinators
-result :: (a -> b) -> (c -> a) -> (c -> b)
-result = (.)
-argument :: (a -> b) -> (b -> c) -> (a -> c)
-argument = flip (.)
+-- setHandler is the inverse of mkEvent
+setHandler :: Event a -> (a -> IO ()) -> IO ()
+setHandler = runContT . runEvent
 
-instance Functor Event where
-  fmap = inEvent . argument . argument
-
-empty :: Event a
-empty = Event (const mempty)
+inMkEvent ::
+  (((a -> IO ()) -> IO ()) -> (b -> IO ()) -> IO ()) ->
+  Event a -> Event b
+inMkEvent = inEvent . inContT
 
 inEvent2 ::
   (InEvent a -> InEvent b -> InEvent c) ->
   Event a -> Event b -> Event c
 inEvent2 = result inEvent . argument runEvent
+
+newtype SideEffect = SideEffect { runSideEffect :: Event (IO ()) }
+
+instance Functor Event where
+  fmap = inEvent . fmap
+
+empty :: Event a
+empty = Event mempty
 
 merge :: Event a -> Event a -> Event a
 merge = inEvent2 mappend
@@ -47,21 +59,23 @@ instance Monoid SideEffect where
   mempty = SideEffect empty
   mappend x y = SideEffect $ runSideEffect x `merge` runSideEffect y
 
+-- cons should actually be for "Applicative m", not Monad
+-- but there's no Applicative instance for "ContT () IO"..
+cons :: (Monad m, Monoid (m a)) => a -> m a -> m a
+cons = mappend . return
+
 escanl :: (a -> b -> a) -> a -> Event b -> Event a
 escanl step startVal event =
-  Event $ \handler -> do
-    handler startVal
-    accVar <- newMVar startVal
+  Event $ do
+    accVar <- lift $ newMVar startVal
     let
-      srcHandler val = do
-        prevAcc <- takeMVar accVar
-        let newAcc = step prevAcc val
-        putMVar accVar newAcc
-        handler newAcc
-    runEvent event srcHandler
+      srcHandler handler val =
+        takeMVar accVar >>=
+        liftA2 mappend (putMVar accVar) handler . (`step` val)
+    cons startVal . runEvent $ inMkEvent (argument srcHandler) event
 
 efilter :: (a -> Bool) -> Event a -> Event a
-efilter = inEvent . argument . liftA2 when
+efilter = inMkEvent . argument . liftA2 when
 
 makeCallbackEvent :: IO (Event a, a -> IO ())
 makeCallbackEvent = do
@@ -69,14 +83,14 @@ makeCallbackEvent = do
   let
     srcHandler val =
       mapM_ ($ val) =<< readMVar dstHandlersVar
-    addHandler =
-      modifyMVar_ dstHandlersVar . (return .) . (:)
-  return (Event addHandler, srcHandler)
+    event =
+      mkEvent $
+      modifyMVar_ dstHandlersVar . result return . (:)
+  return (event, srcHandler)
 
 ejoin :: Event (IO a) -> Event a
-ejoin = inEvent $ argument (=<<)
+ejoin = inEvent (join . liftM lift)
 
 executeSideEffect :: SideEffect -> IO ()
-executeSideEffect =
-  (`runEvent` const mempty) . runSideEffect
+executeSideEffect = mempty . runContT . runEvent . runSideEffect
 

@@ -16,11 +16,13 @@ Build-type:          Simple
 Library
   hs-Source-Dirs:      src
   Extensions:
-  Build-Depends:       base >= 3 && < 5, GLUT, time, TypeCompose
+  Build-Depends:       base >= 3 && < 5, GLUT, time, TypeCompose, mtl
   Exposed-modules:     FRP.Peakachu
                        FRP.Peakachu.Backend.File
                        FRP.Peakachu.Backend.GLUT
                        FRP.Peakachu.Backend.Time
                        FRP.Peakachu.Internal
+                       Control.SECombinator
+                       Control.Monad.Cont.Monoid
   ghc-options:         -O2 -Wall
 
