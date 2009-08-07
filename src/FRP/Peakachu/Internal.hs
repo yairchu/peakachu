@@ -8,8 +8,8 @@ module FRP.Peakachu.Internal (
 
 import Control.Applicative (liftA2)
 import Control.Concurrent.MVar (
-  newMVar, modifyMVar_, putMVar, readMVar, takeMVar)
-import Control.Monad (when)
+  MVar, newMVar, modifyMVar_, putMVar, readMVar, takeMVar)
+import Control.Monad (join, when)
 import Control.Monad.Cont (ContT(..))
 import Control.Monad.Cont.Monoid (inContT)
 import Control.Monad.Instances ()
@@ -77,6 +77,12 @@ escanl step startVal event =
 efilter :: (a -> Bool) -> Event a -> Event a
 efilter = inMkEvent . argument . liftA2 when
 
+modifyMVarPure :: MVar a -> (a -> a) -> IO ()
+modifyMVarPure mvar = modifyMVar_ mvar . result return
+
+setMVar :: MVar a -> a -> IO ()
+setMVar mvar = modifyMVarPure mvar . const
+
 makeCallbackEvent :: IO (Event a, a -> IO ())
 makeCallbackEvent = do
   dstHandlersVar <- newMVar []
@@ -85,9 +91,20 @@ makeCallbackEvent = do
       mapM_ ($ val) =<< readMVar dstHandlersVar
     event =
       mkEvent $
-      modifyMVar_ dstHandlersVar . result return . (:)
+      modifyMVarPure dstHandlersVar . (:)
   return (event, srcHandler)
 
 executeSideEffect :: SideEffect -> IO ()
-executeSideEffect = (`setHandler` id) . runSideEffect
+executeSideEffect effect = do
+  startedVar <- newMVar False
+  startQueue <- newMVar mempty
+  let
+    handler action = do
+      started <- readMVar startedVar
+      case started of
+        True -> action
+        False -> modifyMVarPure startQueue (mappend action)
+  setHandler (runSideEffect effect) handler
+  setMVar startedVar True
+  join (readMVar startQueue)
 

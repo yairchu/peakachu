@@ -1,3 +1,4 @@
+{-# OPTIONS -fno-warn-orphans #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Control.Monad.Cont.Monoid (
