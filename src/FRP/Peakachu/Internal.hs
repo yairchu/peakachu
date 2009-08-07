@@ -94,10 +94,14 @@ makeCallbackEvent = do
       modifyMVarPure dstHandlersVar . (:)
   return (event, srcHandler)
 
+-- how executeSideEffect works:
+-- only after all side-effects have initialized,
+-- perform their start-up effects,
+-- so that all event handlers had their oppurtunity to subscribe to the events
 executeSideEffect :: SideEffect -> IO ()
 executeSideEffect effect = do
   startedVar <- newMVar False
-  startQueue <- newMVar mempty
+  startQueue <- newMVar mempty -- start-up effects
   let
     handler action = do
       started <- readMVar startedVar
@@ -106,5 +110,5 @@ executeSideEffect effect = do
         False -> modifyMVarPure startQueue (mappend action)
   setHandler (runSideEffect effect) handler
   setMVar startedVar True
-  join (readMVar startQueue)
+  join (readMVar startQueue) -- run start-up effects
 
