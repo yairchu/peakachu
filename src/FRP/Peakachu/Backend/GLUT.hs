@@ -4,12 +4,13 @@ module FRP.Peakachu.Backend.GLUT (
   setTimerEvent, run
   ) where
 
-import Control.SECombinator (argument)
-import FRP.Peakachu (EventMerge(..), ereturn, eMapMaybe)
+import FRP.Peakachu (
+  EffectfulFunc, Event, EventMerge(..), ereturn, eMapMaybe)
+import FRP.Peakachu.Backend.IO (mkEffectfulFunc)
 import FRP.Peakachu.Internal (
-  Event, SideEffect(..),
-  inMkEvent, executeSideEffect, makeCallbackEvent)
+  SideEffect(..), executeSideEffect, makeCallbackEvent)
 
+import Control.Monad.Cont (ContT(..))
 import Data.Monoid (Monoid(..))
 import Graphics.UI.GLUT (
   ($=), ($~), SettableStateVar, get,
@@ -91,12 +92,12 @@ draw image = do
   swapBuffers
   flush
 
-setTimerEvent :: Event (Timeout, a) -> Event a
-setTimerEvent =
-  inMkEvent $ argument go
-  where
-    go cb (timeOut, val) =
-      addTimerCallback timeOut (cb val)
+contTimerCallback :: Timeout -> ContT () IO ()
+contTimerCallback timeOut =
+  ContT (addTimerCallback timeOut . ($ ()))
+
+setTimerEvent :: IO (EffectfulFunc Timeout () a)
+setTimerEvent = mkEffectfulFunc contTimerCallback
 
 run :: (UI -> (Event Image, SideEffect)) -> IO ()
 run programDesc = do

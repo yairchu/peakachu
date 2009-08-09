@@ -20,6 +20,7 @@ Library
   Exposed-modules:     FRP.Peakachu
                        FRP.Peakachu.Backend.File
                        FRP.Peakachu.Backend.GLUT
+                       FRP.Peakachu.Backend.IO
                        FRP.Peakachu.Backend.Time
                        FRP.Peakachu.Internal
                        Control.SECombinator

@@ -1,9 +1,10 @@
 module FRP.Peakachu (
   EffectfulFunc, Event, SideEffect,
   EventMerge(..), EventZip(..),
+  empty, merge,
   escanl, efilter,
   edrop, ereturn, eMapMaybe,
-  ezip, ezip', eZipWith
+  ezip, ezip', eZipWith, eZipByFst
   ) where
 
 import Data.Maybe (fromJust, isJust)
@@ -68,4 +69,17 @@ edrop count =
 eMapMaybe :: (a -> Maybe b) -> Event a -> Event b
 eMapMaybe func =
   fmap fromJust . efilter isJust . fmap func
+
+eZipByFst :: Event a -> Event b -> Event (a, b)
+eZipByFst ea eb =
+  eMapMaybe f .
+  escanl step (True, Nothing, Nothing) .
+  runEventMerge $
+  EventMerge (fmap Left ea) `mappend`
+  EventMerge (fmap Right eb)
+  where
+    step (_, _, vb) (Left va) = (True, Just va, vb)
+    step (_, va, _) (Right vb) = (False, va, Just vb)
+    f (True, Just va, Just vb) = Just (va, vb)
+    f _ = Nothing
 

@@ -2,10 +2,11 @@ module FRP.Peakachu.Backend.File (
   readFileE, writeFileE
   ) where
 
-import FRP.Peakachu (Event, EffectfulFunc)
-import FRP.Peakachu.Internal (SideEffect(..), makeCallbackEvent)
+import FRP.Peakachu (Event, EffectfulFunc, SideEffect)
+import FRP.Peakachu.Backend.IO (mkEffectfulFunc, mkSideEffect)
 
 import Control.Monad (join)
+import Control.Monad.Trans (lift)
 import Data.Function (fix)
 import System.IO (IOMode(ReadMode), openFile, hClose, hGetChar)
 import System.IO.Error (try, isEOFError)
@@ -32,13 +33,8 @@ strictReadFile filename = do
   return contents
 
 readFileE :: IO (EffectfulFunc FilePath String a)
-readFileE = do
-  (event, callback) <- makeCallbackEvent
-  let
-    f (filename, val) = do
-      contents <- strictReadFile filename
-      callback (contents, val)
-  return (SideEffect . fmap f, event)
+readFileE = mkEffectfulFunc (lift . strictReadFile)
 
 writeFileE :: Event (FilePath, String) -> SideEffect
-writeFileE = SideEffect . fmap (uncurry writeFile)
+writeFileE = mkSideEffect (uncurry writeFile)
+
