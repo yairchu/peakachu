@@ -5,10 +5,10 @@ module FRP.Peakachu.Backend.GLUT (
   ) where
 
 import FRP.Peakachu (
-  EffectfulFunc, Event, EventMerge(..), ereturn, eMapMaybe)
-import FRP.Peakachu.Backend.IO (mkEffectfulFunc)
-import FRP.Peakachu.Internal (
-  SideEffect(..), executeSideEffect, makeCallbackEvent)
+  EffectfulFunc, Event, EventMerge(..), SideEffect,
+  ereturn, eMapMaybe)
+import FRP.Peakachu.Backend.IO (mkEffectfulFunc, mkSideEffect)
+import FRP.Peakachu.Internal (executeSideEffect, makeCallbackEvent)
 
 import Control.Monad.Cont (ContT(..))
 import Data.Monoid (Monoid(..))
@@ -106,8 +106,6 @@ run programDesc = do
   createWindow "test"
   displayCallback $= return ()
   (image, sideEffect) <- fmap programDesc createUI
-  executeSideEffect $
-    sideEffect `mappend`
-    SideEffect (fmap draw image)
+  executeSideEffect $ sideEffect `mappend` mkSideEffect draw image
   mainLoop
 
