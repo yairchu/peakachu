@@ -18,7 +18,7 @@ import Control.Instances () -- Conal's TypeCompose instances
 import Control.SECombinator (argument, result)
 import Data.Monoid (Monoid(..))
 
-type InEvent a = ContT () IO a
+type InEvent = ContT () IO
 
 newtype Event a = Event { runEvent :: InEvent a }
 
@@ -105,9 +105,9 @@ executeSideEffect effect = do
   let
     handler action = do
       started <- readMVar startedVar
-      case started of
-        True -> action
-        False -> modifyMVarPure startQueue (mappend action)
+      if started
+        then action
+        else modifyMVarPure startQueue (mappend action)
   setHandler (runSideEffect effect) handler
   setMVar startedVar True
   join (readMVar startQueue) -- run start-up effects
