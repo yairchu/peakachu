@@ -6,16 +6,18 @@ module FRP.Peakachu.Internal (
   mkEvent, inMkEvent, setHandler, inEvent2
   ) where
 
+import Control.Concurrent.MVar.YC (modifyMVarPure, writeMVar)
+import Control.SECombinator (argument, result)
+
 import Control.Applicative (liftA2)
 import Control.Concurrent.MVar (
-  MVar, newMVar, modifyMVar_, putMVar, readMVar, takeMVar)
+  newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (join, when)
 import Control.Monad.Cont (ContT(..))
 import Control.Monad.Cont.Monoid (inContT)
 import Control.Monad.Instances ()
 import Control.Monad.Trans (lift)
 import Control.Instances () -- Conal's TypeCompose instances
-import Control.SECombinator (argument, result)
 import Data.Monoid (Monoid(..))
 
 type InEvent = ContT () IO
@@ -77,12 +79,6 @@ escanl step startVal event =
 efilter :: (a -> Bool) -> Event a -> Event a
 efilter = inMkEvent . argument . liftA2 when
 
-modifyMVarPure :: MVar a -> (a -> a) -> IO ()
-modifyMVarPure mvar = modifyMVar_ mvar . result return
-
-setMVar :: MVar a -> a -> IO ()
-setMVar mvar = modifyMVarPure mvar . const
-
 makeCallbackEvent :: IO (Event a, a -> IO ())
 makeCallbackEvent = do
   dstHandlersVar <- newMVar []
@@ -109,6 +105,6 @@ executeSideEffect effect = do
         then action
         else modifyMVarPure startQueue (mappend action)
   setHandler (runSideEffect effect) handler
-  setMVar startedVar True
+  writeMVar startedVar True
   join (readMVar startQueue) -- run start-up effects
 

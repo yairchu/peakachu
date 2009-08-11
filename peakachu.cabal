@@ -23,7 +23,8 @@ Library
                        FRP.Peakachu.Backend.IO
                        FRP.Peakachu.Backend.Time
                        FRP.Peakachu.Internal
-                       Control.SECombinator
+                       Control.Concurrent.MVar.YC
                        Control.Monad.Cont.Monoid
+                       Control.SECombinator
   ghc-options:         -O2 -Wall
 
