@@ -7,8 +7,9 @@ module FRP.Peakachu.Backend.GLUT (
 import FRP.Peakachu (
   EffectfulFunc, Event, EventMerge(..), SideEffect,
   ereturn, eMapMaybe)
-import FRP.Peakachu.Backend.IO (mkEffectfulFunc, mkSideEffect)
-import FRP.Peakachu.Internal (executeSideEffect, makeCallbackEvent)
+import FRP.Peakachu.Backend.IO (
+  mkCallbackEvent, mkEffectfulFunc, mkSideEffect)
+import FRP.Peakachu.Internal (executeSideEffect)
 
 import Control.Monad.Cont (ContT(..))
 import Data.Monoid (Monoid(..))
@@ -42,7 +43,7 @@ glutCallbackEvent ::
   ((a -> IO ()) -> b) ->
   IO (Event a)
 glutCallbackEvent callbackVar trans = do
-  (event, callback) <- makeCallbackEvent
+  (event, callback) <- mkCallbackEvent
   callbackVar $= Just (trans callback)
   return event
 

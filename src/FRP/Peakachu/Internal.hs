@@ -2,7 +2,6 @@ module FRP.Peakachu.Internal (
   Event(..), inEvent, SideEffect(..),
   escanl, efilter, empty, merge,
   executeSideEffect,
-  makeCallbackEvent,
   mkEvent, inMkEvent, setHandler, inEvent2
   ) where
 
@@ -78,17 +77,6 @@ escanl step startVal event =
 
 efilter :: (a -> Bool) -> Event a -> Event a
 efilter = inMkEvent . argument . liftA2 when
-
-makeCallbackEvent :: IO (Event a, a -> IO ())
-makeCallbackEvent = do
-  dstHandlersVar <- newMVar []
-  let
-    srcHandler val =
-      mapM_ ($ val) =<< readMVar dstHandlersVar
-    event =
-      mkEvent $
-      modifyMVarPure dstHandlersVar . (:)
-  return (event, srcHandler)
 
 -- how executeSideEffect works:
 -- only after all side-effects have initialized,
