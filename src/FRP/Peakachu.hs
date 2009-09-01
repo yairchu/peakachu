@@ -3,14 +3,15 @@ module FRP.Peakachu (
   EventMerge(..), EventZip(..),
   empty, merge,
   escanl, efilter,
-  edrop, ereturn, eMapMaybe,
+  edrop, ereturn, eMapMaybe, eFlatten,
   ezip, ezip', eZipWith, eZipByFst
   ) where
 
 import Data.Maybe (fromJust, isJust)
 import Data.Monoid (Monoid(..))
 import FRP.Peakachu.Internal (
-  Event, SideEffect, escanl, efilter, empty, merge)
+  Event, SideEffect, escanl, efilter,
+  eFlatten, empty, merge)
 
 -- | Monoid for merging events
 newtype EventMerge a = EventMerge { runEventMerge :: Event a }

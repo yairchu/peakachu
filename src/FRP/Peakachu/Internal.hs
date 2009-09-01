@@ -1,7 +1,7 @@
 module FRP.Peakachu.Internal (
   Event(..), inEvent, SideEffect(..),
   escanl, efilter, empty, merge,
-  executeSideEffect,
+  eFlatten, executeSideEffect,
   mkEvent, inMkEvent, setHandler, inEvent2
   ) where
 
@@ -77,6 +77,9 @@ escanl step startVal event =
 
 efilter :: (a -> Bool) -> Event a -> Event a
 efilter = inMkEvent . argument . liftA2 when
+
+eFlatten :: Event [a] -> Event a
+eFlatten = inMkEvent (argument mapM_)
 
 -- how executeSideEffect works:
 -- only after all side-effects have initialized,
