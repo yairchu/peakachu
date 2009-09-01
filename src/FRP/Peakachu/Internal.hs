@@ -2,7 +2,7 @@ module FRP.Peakachu.Internal (
   Event(..), inEvent, SideEffect(..),
   escanl, efilter, empty, merge,
   eFlatten, executeSideEffect,
-  mkEvent, inMkEvent, setHandler, inEvent2
+  inEvent2
   ) where
 
 import Control.Concurrent.MVar.YC (modifyMVarPure, writeMVar)
@@ -13,30 +13,19 @@ import Control.Concurrent.MVar (
   newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (join, when)
 import Control.Monad.Cont (ContT(..))
-import Control.Monad.Cont.Monoid (inContT)
+import Control.Monad.Cont.Monoid ()
 import Control.Monad.Instances ()
 import Control.Monad.Trans (lift)
 import Control.Instances () -- Conal's TypeCompose instances
 import Data.Monoid (Monoid(..))
 
-type InEvent = ContT () IO
+-- InEvent is equivalent to ContT () IO except for the newtype
+type InEvent a = (a -> IO ()) -> IO ()
 
 newtype Event a = Event { runEvent :: InEvent a }
 
 inEvent :: (InEvent a -> InEvent b) -> Event a -> Event b
 inEvent func = Event . func . runEvent
-
-mkEvent :: ((a -> IO ()) -> IO ()) -> Event a
-mkEvent = Event . ContT
-
--- setHandler is the inverse of mkEvent
-setHandler :: Event a -> (a -> IO ()) -> IO ()
-setHandler = runContT . runEvent
-
-inMkEvent ::
-  (((a -> IO ()) -> IO ()) -> (b -> IO ()) -> IO ()) ->
-  Event a -> Event b
-inMkEvent = inEvent . inContT
 
 inEvent2 ::
   (InEvent a -> InEvent b -> InEvent c) ->
@@ -46,7 +35,7 @@ inEvent2 = result inEvent . argument runEvent
 newtype SideEffect = SideEffect { runSideEffect :: Event (IO ()) }
 
 instance Functor Event where
-  fmap = inEvent . fmap
+  fmap = inEvent . argument . argument
 
 empty :: Event a
 empty = Event mempty
@@ -67,19 +56,19 @@ cons = mappend . return
 
 escanl :: (a -> b -> a) -> a -> Event b -> Event a
 escanl step startVal event =
-  Event $ do
+  Event . runContT $ do
     accVar <- lift $ newMVar startVal
     let
       srcHandler handler val =
         takeMVar accVar >>=
         liftA2 mappend (putMVar accVar) handler . (`step` val)
-    cons startVal . runEvent $ inMkEvent (argument srcHandler) event
+    cons startVal . ContT . argument srcHandler . runEvent $ event
 
 efilter :: (a -> Bool) -> Event a -> Event a
-efilter = inMkEvent . argument . liftA2 when
+efilter = inEvent . argument . liftA2 when
 
 eFlatten :: Event [a] -> Event a
-eFlatten = inMkEvent (argument mapM_)
+eFlatten = inEvent . argument $ mapM_
 
 -- how executeSideEffect works:
 -- only after all side-effects have initialized,
@@ -95,7 +84,7 @@ executeSideEffect effect = do
       if started
         then action
         else modifyMVarPure startQueue (mappend action)
-  setHandler (runSideEffect effect) handler
+  (runEvent . runSideEffect) effect handler
   writeMVar startedVar True
   join (readMVar startQueue) -- run start-up effects
 

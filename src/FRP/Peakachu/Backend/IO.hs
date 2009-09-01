@@ -3,8 +3,8 @@ module FRP.Peakachu.Backend.IO (
   ) where
 
 import Control.Concurrent.MVar.YC (modifyMVarPure)
-import FRP.Peakachu (EffectfulFunc, Event)
-import FRP.Peakachu.Internal (SideEffect(..), mkEvent)
+import FRP.Peakachu (EffectfulFunc)
+import FRP.Peakachu.Internal (SideEffect(..), Event(..))
 
 import Control.Applicative ((<$))
 import Control.Concurrent (forkIO)
@@ -18,7 +18,7 @@ mkCallbackEvent = do
     srcHandler val =
       mapM_ ($ val) =<< readMVar dstHandlersVar
     event =
-      mkEvent $
+      Event $
       modifyMVarPure dstHandlersVar . (:)
   return (event, srcHandler)
 
