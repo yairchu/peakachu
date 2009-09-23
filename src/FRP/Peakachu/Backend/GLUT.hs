@@ -5,10 +5,10 @@ module FRP.Peakachu.Backend.GLUT (
   ) where
 
 import FRP.Peakachu (
-  EffectfulFunc, Event, EventMerge(..), SideEffect,
+  EffectFunc, Event, EventMerge(..), SideEffect,
   ereturn, eMapMaybe)
 import FRP.Peakachu.Backend.IO (
-  mkCallbackEvent, mkEffectfulFunc, mkSideEffect)
+  mkCallbackEvent, mkEffectFunc, mkSideEffect)
 import FRP.Peakachu.Internal (executeSideEffect)
 
 import Control.Monad.Cont (ContT(..))
@@ -97,8 +97,8 @@ contTimerCallback :: Timeout -> ContT () IO ()
 contTimerCallback timeOut =
   ContT (addTimerCallback timeOut . ($ ()))
 
-setTimerEvent :: IO (EffectfulFunc Timeout () a)
-setTimerEvent = mkEffectfulFunc contTimerCallback
+setTimerEvent :: IO (EffectFunc Timeout () a)
+setTimerEvent = mkEffectFunc contTimerCallback
 
 run :: (UI -> (Event Image, SideEffect)) -> IO ()
 run programDesc = do

@@ -2,8 +2,8 @@ module FRP.Peakachu.Backend.File (
   readFileE, writeFileE
   ) where
 
-import FRP.Peakachu (Event, EffectfulFunc, SideEffect)
-import FRP.Peakachu.Backend.IO (mkEffectfulFunc, mkSideEffect)
+import FRP.Peakachu (Event, EffectFunc, SideEffect)
+import FRP.Peakachu.Backend.IO (mkEffectFunc, mkSideEffect)
 
 import Control.Monad (join)
 import Control.Monad.Trans (lift)
@@ -32,8 +32,8 @@ strictReadFile filename = do
   hClose file
   return contents
 
-readFileE :: IO (EffectfulFunc FilePath String a)
-readFileE = mkEffectfulFunc (lift . strictReadFile)
+readFileE :: IO (EffectFunc FilePath String a)
+readFileE = mkEffectFunc (lift . strictReadFile)
 
 writeFileE :: Event (FilePath, String) -> SideEffect
 writeFileE = mkSideEffect (uncurry writeFile)

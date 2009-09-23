@@ -1,9 +1,9 @@
 module FRP.Peakachu.Backend.IO (
-  mkCallbackEvent, mkEffectfulFunc, mkSideEffect, liftForkIO
+  mkCallbackEvent, mkEffectFunc, mkSideEffect, liftForkIO
   ) where
 
 import Control.Concurrent.MVar.YC (modifyMVarPure)
-import FRP.Peakachu (EffectfulFunc)
+import FRP.Peakachu (EffectFunc(..))
 import FRP.Peakachu.Internal (SideEffect(..), Event(..))
 
 import Control.Applicative ((<$))
@@ -22,14 +22,14 @@ mkCallbackEvent = do
       modifyMVarPure dstHandlersVar . (:)
   return (event, srcHandler)
 
-mkEffectfulFunc ::
-  (a -> ContT () IO b) -> IO (EffectfulFunc a b c)
-mkEffectfulFunc go = do
+mkEffectFunc ::
+  (a -> ContT () IO b) -> IO (EffectFunc a b c)
+mkEffectFunc go = do
   (event, callback) <- mkCallbackEvent
   let
     f (input, other) =
       runContT (go input) (callback . flip (,) other)
-  return (SideEffect . fmap f, event)
+  return $ EffectFunc (mkSideEffect f) event
 
 mkSideEffect :: (a -> IO ()) -> Event a -> SideEffect
 mkSideEffect func = SideEffect . fmap func
