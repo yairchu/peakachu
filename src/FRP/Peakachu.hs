@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module FRP.Peakachu (
   Event, SideEffect, EffectFunc(..),
   EventMerge(..), EventZip(..),
@@ -7,6 +9,7 @@ module FRP.Peakachu (
   ezip, ezip', eZipWith, eZipByFst
   ) where
 
+import Control.Applicative (Applicative(..))
 import Data.Maybe (fromJust, isJust)
 import Data.Monoid (Monoid(..))
 import FRP.Peakachu.Internal (
@@ -23,6 +26,10 @@ data EffectFunc i o a = EffectFunc
   { efRun :: Event (i, a) -> SideEffect
   , efOut :: Event (o, a)
   }
+
+instance Applicative Event where
+  pure = ereturn
+  (<*>) = eZipWith ($)
 
 instance Functor EventMerge where
   fmap f = EventMerge . fmap f . runEventMerge
