@@ -6,7 +6,7 @@ import FRP.Peakachu.Backend (Backend(..), Sink(..))
 
 import Data.Monoid (Monoid(..))
 import Graphics.UI.GLUT (
-  ($=), ($~), get,
+  GLfloat, ($=), ($~), get,
   ClearBuffer(..), Key(..), KeyState(..),
   Modifiers, Position(..), Size(..), Timeout,
   DisplayMode(..), initialDisplayMode, swapBuffers,
@@ -26,7 +26,7 @@ instance Monoid Image where
 data GlutToProgram a
   = IdleEvent
   | TimerEvent a
-  | MouseMotionEvent Float Float
+  | MouseMotionEvent GLfloat GLfloat
   | KeyboardMouseEvent Key KeyState Modifiers Position
 
 data ProgramToGlut a

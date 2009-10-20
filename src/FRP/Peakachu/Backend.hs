@@ -19,7 +19,7 @@ instance Monoid (Sink a) where
   mempty = Sink (const (return ())) Nothing (return ())
   mappend a b =
     Sink
-    { sinkConsume = on (>>) sinkConsume a b
+    { sinkConsume = on (liftM2 (>>)) sinkConsume a b
     , sinkMainLoop = on f sinkMainLoop a b
     , sinkQuitLoop = on (>>) sinkQuitLoop a b
     }
