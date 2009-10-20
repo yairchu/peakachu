@@ -54,7 +54,7 @@ glut =
           runImage image
           swapBuffers
           flush
-        consume (SetTimer timeout tag) = do
+        consume (SetTimer timeout tag) =
           addTimerCallback timeout . handler . TimerEvent $ tag
         setCallbacks = do
           idleCallback $= Just (handler IdleEvent)
