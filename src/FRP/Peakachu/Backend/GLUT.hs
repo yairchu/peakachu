@@ -1,20 +1,12 @@
 module FRP.Peakachu.Backend.GLUT (
-  GlutEvent(..), Image(..), UI,
-  glutIdleEvent, glutKeyboardMouseEvent, mouseMotionEvent,
-  setTimerEvent, run
+  GlutToProgram(..), Image(..), ProgramToGlut(..), glut
   ) where
 
-import FRP.Peakachu (
-  EffectFunc, Event, EventMerge(..), SideEffect,
-  ereturn, eMapMaybe)
-import FRP.Peakachu.Backend.IO (
-  mkCallbackEvent, mkEffectFunc, mkSideEffect)
-import FRP.Peakachu.Internal (executeSideEffect)
+import FRP.Peakachu.Backend (Backend(..), Sink(..))
 
-import Control.Monad.Cont (ContT(..))
 import Data.Monoid (Monoid(..))
 import Graphics.UI.GLUT (
-  ($=), ($~), SettableStateVar, get,
+  ($=), ($~), get,
   ClearBuffer(..), Key(..), KeyState(..),
   Modifiers, Position(..), Size(..), Timeout,
   DisplayMode(..), initialDisplayMode, swapBuffers,
@@ -31,82 +23,49 @@ instance Monoid Image where
   mempty = Image $ return ()
   mappend (Image a) (Image b) = Image $ a >> b
 
-data GlutEvent =
-  IdleEvent
+data GlutToProgram a
+  = IdleEvent
+  | TimerEvent a
   | MouseMotionEvent Float Float
   | KeyboardMouseEvent Key KeyState Modifiers Position
 
-type UI = Event GlutEvent
+data ProgramToGlut a
+  = DrawImage Image
+  | SetTimer Timeout a
 
-glutCallbackEvent ::
-  SettableStateVar (Maybe b) ->
-  ((a -> IO ()) -> b) ->
-  IO (Event a)
-glutCallbackEvent callbackVar trans = do
-  (event, callback) <- mkCallbackEvent
-  callbackVar $= Just (trans callback)
-  return event
-
-createUI :: IO UI
-createUI = do
-  Size sx sy <- get windowSize
-  let
-    pixel2gl cb (Position px py) =
-      cb $ MouseMotionEvent (p2g sx px) (- p2g sy py)
-    p2g sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
-    kbMouse cb key keyState mods =
-      cb . KeyboardMouseEvent key keyState mods
-  fmap (runEventMerge . mconcat . map EventMerge) $ sequence
-    [ return (ereturn (MouseMotionEvent 0 0))
-    , glutCallbackEvent motionCallback pixel2gl
-    , glutCallbackEvent passiveMotionCallback pixel2gl
-    , glutCallbackEvent idleCallback ($ IdleEvent)
-    , glutCallbackEvent keyboardMouseCallback kbMouse
-    ]
-
-mouseMotionEvent :: UI -> Event (Float, Float)
-mouseMotionEvent =
-  eMapMaybe f
+glut :: Backend (ProgramToGlut a) (GlutToProgram a)
+glut =
+  Backend b
   where
-    f (MouseMotionEvent x y) = Just (x, y)
-    f _ = Nothing
-
-glutKeyboardMouseEvent ::
-  UI -> Event (Key, KeyState, Modifiers, Position)
-glutKeyboardMouseEvent =
-  eMapMaybe f
-  where
-    f (KeyboardMouseEvent k s m p) = Just (k, s, m, p)
-    f _ = Nothing
-
-glutIdleEvent :: UI -> Event ()
-glutIdleEvent =
-  eMapMaybe f
-  where
-    f IdleEvent = Just ()
-    f _ = Nothing
-
-draw :: Image -> IO ()
-draw image = do
-  clear [ ColorBuffer ]
-  runImage image
-  swapBuffers
-  flush
-
-contTimerCallback :: Timeout -> ContT () IO ()
-contTimerCallback timeOut =
-  ContT (addTimerCallback timeOut . ($ ()))
-
-setTimerEvent :: IO (EffectFunc Timeout () a)
-setTimerEvent = mkEffectFunc contTimerCallback
-
-run :: (UI -> (Event Image, SideEffect)) -> IO ()
-run programDesc = do
-  _ <- getArgsAndInitialize
-  initialDisplayMode $~ (DoubleBuffered:)
-  createWindow "test"
-  displayCallback $= return ()
-  (image, sideEffect) <- fmap programDesc createUI
-  executeSideEffect $ sideEffect `mappend` mkSideEffect draw image
-  mainLoop
+    b handler = do
+      _ <- getArgsAndInitialize
+      initialDisplayMode $~ (DoubleBuffered:)
+      createWindow "test"
+      displayCallback $= return ()
+      setCallbacks
+      return Sink
+        { sinkConsume = consume
+        , sinkMainLoop = Just mainLoop
+        , sinkQuitLoop = return ()
+        }
+      where
+        consume (DrawImage image) = do
+          clear [ ColorBuffer ]
+          runImage image
+          swapBuffers
+          flush
+        consume (SetTimer timeout tag) = do
+          addTimerCallback timeout . handler . TimerEvent $ tag
+        setCallbacks = do
+          idleCallback $= Just (handler IdleEvent)
+          keyboardMouseCallback $=
+            Just (
+            (fmap . fmap . fmap . fmap)
+            handler KeyboardMouseEvent)
+          motionCallback $= Just motion
+          passiveMotionCallback $= Just motion
+        motion (Position px py) = do
+          Size sx sy <- get windowSize
+          handler $ MouseMotionEvent (p2g sx px) (- p2g sy py)
+        p2g sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
 

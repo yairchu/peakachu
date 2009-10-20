@@ -1,15 +1,22 @@
-module FRP.Peakachu.Backend.File (
-  readFileE, writeFileE
+module FRP.Peakachu.Backend.File
+  ( FileToProgram(..), ProgramToFile(..), fileB
   ) where
 
-import FRP.Peakachu (Event, EffectFunc, SideEffect)
-import FRP.Peakachu.Backend.IO (mkEffectFunc, mkSideEffect)
+import FRP.Peakachu.Backend
 
 import Control.Monad (join)
-import Control.Monad.Trans (lift)
 import Data.Function (fix)
+import Data.Monoid (Monoid(..))
 import System.IO (IOMode(ReadMode), openFile, hClose, hGetChar)
 import System.IO.Error (try, isEOFError)
+
+data FileToProgram a
+  = FileData String a
+  | FileError a
+
+data ProgramToFile a
+  = ReadFile FilePath a
+  | WriteFile FilePath String a
 
 maybeIO :: (IOError -> Bool) -> IO a -> IO (Maybe a)
 maybeIO isExpected =
@@ -32,9 +39,16 @@ strictReadFile filename = do
   hClose file
   return contents
 
-readFileE :: IO (EffectFunc FilePath String a)
-readFileE = mkEffectFunc (lift . strictReadFile)
-
-writeFileE :: Event (FilePath, String) -> SideEffect
-writeFileE = mkSideEffect (uncurry writeFile)
+fileB :: Backend (ProgramToFile a) (FileToProgram a)
+fileB =
+  Backend f
+  where
+    f handler =
+      return mempty { sinkConsume = consume }
+      where
+        consume (ReadFile filename tag) =
+          strictReadFile filename >>=
+          handler . (`FileData` tag)
+        consume (WriteFile filename contents _) =
+          writeFile filename contents
 

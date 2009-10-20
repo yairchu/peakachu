@@ -1,20 +1,19 @@
-module FRP.Peakachu.Backend.Time (
-  timeOf, zipTime
+module FRP.Peakachu.Backend.Time
+  ( getTimeB
   ) where
 
-import Control.SECombinator (argument)
-import FRP.Peakachu.Internal (Event, inEvent)
+import Data.Monoid (Monoid(..))
+import FRP.Peakachu.Backend (Backend(..), Sink(..))
 
 import Data.Time.Clock (UTCTime, getCurrentTime)
 
-zipTime :: Event a -> Event (UTCTime, a)
-zipTime =
-  inEvent $ argument srcHandler
+getTimeB :: Backend a (UTCTime, a)
+getTimeB =
+  Backend f
   where
-    srcHandler handler val = do
-      now <- getCurrentTime
-      handler (now, val)
-
-timeOf :: Event a -> Event UTCTime
-timeOf = fmap fst . zipTime
-
+    f handler =
+      return mempty { sinkConsume = consume }
+      where
+        consume tag = do
+          now <- getCurrentTime
+          handler (now, tag)

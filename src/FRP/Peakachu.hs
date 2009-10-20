@@ -1,96 +1,55 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
-module FRP.Peakachu (
-  Event, SideEffect, EffectFunc(..),
-  EventMerge(..), EventZip(..),
-  empty, merge,
-  escanl, efilter,
-  edrop, ereturn, eMapMaybe, eFlatten,
-  ezip, ezip', eZipWith, eZipByFst
+module FRP.Peakachu
+  ( runProgram
   ) where
 
-import Control.Applicative (Applicative(..))
-import Data.Maybe (fromJust, isJust)
-import Data.Monoid (Monoid(..))
-import FRP.Peakachu.Internal (
-  Event, SideEffect, escanl, efilter,
-  eFlatten, empty, merge)
+import FRP.Peakachu.Backend (Backend(..), Sink(..))
+import FRP.Peakachu.Program (Program(..))
+import Control.Concurrent.MVar.YC (writeMVar)
 
--- | Monoid for merging events
-newtype EventMerge a = EventMerge { runEventMerge :: Event a }
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.MVar (newMVar, putMVar, readMVar, takeMVar)
+import Control.Monad (when)
+import Data.Function (fix)
+import Data.Maybe (isNothing)
 
--- | Monoid for mappending inner Monoids of events
-newtype EventZip a = EventZip { runEventZip :: Event a }
+doWhile :: Monad m => m Bool -> m ()
+doWhile x = fix $ (x >>=) . flip when
 
-data EffectFunc i o a = EffectFunc
-  { efRun :: Event (i, a) -> SideEffect
-  , efOut :: Event (o, a)
-  }
-
-instance Applicative Event where
-  pure = ereturn
-  (<*>) = eZipWith ($)
-
-instance Functor EventMerge where
-  fmap f = EventMerge . fmap f . runEventMerge
-
-instance Monoid (EventMerge a) where
-  mempty = EventMerge empty
-  mappend a = EventMerge . merge (runEventMerge a) . runEventMerge
-
-instance Functor EventZip where
-  fmap f = EventZip . fmap f . runEventZip
-
-instance Monoid a => Monoid (EventZip a) where
-  mempty = EventZip $ ereturn mempty
-  mappend a = EventZip . eZipWith mappend (runEventZip a) . runEventZip
-
-ezip' :: Event a -> Event b -> Event (Maybe a, Maybe b)
-ezip' as bs =
-  escanl step (Nothing, Nothing) $ fmap Left as `merge` fmap Right bs
-  where
-    step (_, r) (Left l) = (Just l, r)
-    step (l, _) (Right r) = (l, Just r)
-
-eZipWith :: (a -> b -> c) -> Event a -> Event b -> Event c
-eZipWith func as bs =
-  fmap m . efilter f $ ezip' as bs
-  where
-    f (Just _, Just _) = True
-    f _ = False
-    m (Just l, Just r) = func l r
-    m _ = undefined
-
-ezip :: Event a -> Event b -> Event (a, b)
-ezip = eZipWith (,)
-
-ereturn :: a -> Event a
-ereturn x = escanl (const id) x empty
-
-edrop :: Integral i => i -> Event a -> Event a
-edrop count =
-  fmap snd .
-  efilter ((== 0) . fst) .
-  escanl step (count+1, undefined)
-  where
-    step (0, _) x = (0, x)
-    step (i, _) x = (i-1, x)
-
--- Event is not a MonadPlus so can't use a generic mapMaybe
-eMapMaybe :: (a -> Maybe b) -> Event a -> Event b
-eMapMaybe func =
-  fmap fromJust . efilter isJust . fmap func
-
-eZipByFst :: Event a -> Event b -> Event (a, b)
-eZipByFst ea eb =
-  eMapMaybe f .
-  escanl step (True, Nothing, Nothing) .
-  runEventMerge $
-  EventMerge (fmap Left ea) `mappend`
-  EventMerge (fmap Right eb)
-  where
-    step (_, _, vb) (Left va) = (True, Just va, vb)
-    step (_, va, _) (Right vb) = (False, va, Just vb)
-    f (True, Just va, Just vb) = Just (va, vb)
-    f _ = Nothing
+runProgram :: Backend o i -> Program i o -> IO ()
+runProgram backend program = do
+  progVar <- newMVar program
+  resumeVar <- newMVar True
+  sinkVar <- newMVar Nothing
+  let
+    consumeOutput =
+      doWhile $ do
+        Just sink <- readMVar sinkVar
+        prog <- takeMVar progVar
+        case progVals prog of
+          [] -> do
+            putMVar progVar prog
+            when (isNothing (progMore prog)) $ do
+              sinkQuitLoop sink
+              writeMVar resumeVar False
+            return False
+          (x : xs) -> do
+            putMVar progVar prog { progVals = xs }
+            sinkConsume sink x
+            return True
+    handleInput val = do
+      prog <- takeMVar progVar
+      let
+        Just more = progMore prog
+        m = more val
+      putMVar progVar $ m { progVals = progVals prog ++ progVals m }
+      consumeOutput
+  sink <- runBackend backend handleInput
+  writeMVar sinkVar (Just sink)
+  -- consumeOutput
+  case sinkMainLoop sink of
+    Nothing ->
+      doWhile $ do
+        threadDelay 200000 -- 0.2 sec
+        readMVar resumeVar
+    Just mainloop -> mainloop
 
