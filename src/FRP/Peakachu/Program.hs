@@ -1,11 +1,14 @@
 module FRP.Peakachu.Program
-  ( Program(..), filterS, mapMaybeS, scanlS
+  ( Program(..), scanlS
   ) where
+
+import Control.FilterCategory (FilterCategory(..))
 
 import Control.Applicative (Applicative(..), (<$>), liftA2)
 import Control.Category (Category(..))
 import Data.Maybe (fromJust, isJust)
 import Data.Monoid (Monoid(..))
+
 import Prelude hiding ((.), id)
 
 -- | Program is similar to 
@@ -36,6 +39,12 @@ instance Category Program where
       step (Program _ (Just restA)) xB = restA xB
       more rB x = Program [] (progMore (last stuff)) . rB x
 
+instance FilterCategory Program where
+  rid =
+    fromJust <$> t []
+    where
+      t = (`Program` Just (t . filter isJust . return))
+
 instance Functor (Program input) where
   fmap f (Program vals rest) =
     Program (fmap f vals) ((fmap . fmap . fmap) f rest)
@@ -63,15 +72,6 @@ instance Monoid (Program input output) where
   mempty = Program [] Nothing
   mappend (Program vA rA) (Program vB rB) =
     Program (mappend vA vB) (mappend rA rB)
-
-filterS :: (a -> Bool) -> Program a a
-filterS f =
-  t []
-  where
-    t = (`Program` Just (t . filter f . return))
-
-mapMaybeS :: (a -> Maybe b) -> Program a b
-mapMaybeS f = fromJust <$> filterS isJust . (f <$> id)
 
 scanlS :: (s -> i -> s) -> s -> Program i s
 scanlS step =

@@ -24,5 +24,6 @@ Library
                        FRP.Peakachu.Backend.GLUT
                        FRP.Peakachu.Backend.Time
                        Control.Concurrent.MVar.YC
+                       Control.FilterCategory
   ghc-options:         -O2 -Wall
 
