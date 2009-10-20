@@ -16,7 +16,7 @@ Build-type:          Simple
 Library
   hs-Source-Dirs:      src
   Extensions:
-  Build-Depends:       base >= 3 && < 5, GLUT, time, mtl
+  Build-Depends:       base >= 3 && < 5, GLUT, time, mtl, template-haskell
   Exposed-modules:     FRP.Peakachu
                        FRP.Peakachu.Program
                        FRP.Peakachu.Backend
@@ -25,5 +25,6 @@ Library
                        FRP.Peakachu.Backend.Time
                        Control.Concurrent.MVar.YC
                        Control.FilterCategory
+                       Data.ADT.Getters
   ghc-options:         -O2 -Wall
 
