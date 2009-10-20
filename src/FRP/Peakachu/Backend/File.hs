@@ -1,8 +1,13 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module FRP.Peakachu.Backend.File
   ( FileToProgram(..), ProgramToFile(..), fileB
+  , cFileData, cFileError
   ) where
 
-import FRP.Peakachu.Backend
+import Control.FilterCategory (FilterCategory(..), mapMaybeC)
+import Data.ADT.Getters (mkADTGetterCats)
+import FRP.Peakachu.Backend (Backend(..), Sink(..))
 
 import Control.Monad (join)
 import Data.Function (fix)
@@ -13,6 +18,7 @@ import System.IO.Error (try, isEOFError)
 data FileToProgram a
   = FileData String a
   | FileError a
+$(mkADTGetterCats ''FileToProgram)
 
 data ProgramToFile a
   = ReadFile FilePath a

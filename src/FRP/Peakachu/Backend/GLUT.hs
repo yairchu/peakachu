@@ -1,7 +1,13 @@
-module FRP.Peakachu.Backend.GLUT (
-  GlutToProgram(..), Image(..), ProgramToGlut(..), glut
+{-# LANGUAGE TemplateHaskell #-}
+
+module FRP.Peakachu.Backend.GLUT
+  ( GlutToProgram(..), Image(..), ProgramToGlut(..), glut
+  , cIdleEvent, cTimerEvent, cMouseMotionEvent
+  , cKeyboardMouseEvent
   ) where
 
+import Control.FilterCategory (FilterCategory(..), mapMaybeC)
+import Data.ADT.Getters (mkADTGetterCats)
 import FRP.Peakachu.Backend (Backend(..), Sink(..))
 
 import Data.Monoid (Monoid(..))
@@ -28,6 +34,7 @@ data GlutToProgram a
   | TimerEvent a
   | MouseMotionEvent GLfloat GLfloat
   | KeyboardMouseEvent Key KeyState Modifiers Position
+$(mkADTGetterCats ''GlutToProgram)
 
 data ProgramToGlut a
   = DrawImage Image
