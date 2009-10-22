@@ -1,12 +1,13 @@
 module FRP.Peakachu.Program
-  ( Program(..), scanlS
+  ( Program(..), scanlP, singleValueP, loopbackP
   ) where
 
 import Control.FilterCategory (FilterCategory(..))
 
 import Control.Applicative (Applicative(..), (<$>), liftA2)
 import Control.Category (Category(..))
-import Data.Maybe (fromJust, isJust)
+import Data.Function (fix)
+import Data.Maybe (fromJust, isJust, mapMaybe)
 import Data.Monoid (Monoid(..))
 
 import Prelude hiding ((.), id)
@@ -35,8 +36,7 @@ instance Category Program where
     }
     where
       stuff = scanl step a valsB
-      step (Program _ Nothing) _ = Program [] Nothing
-      step (Program _ (Just restA)) xB = restA xB
+      step (Program _ restA) xB = maybe mempty ($ xB) restA
       more rB x = Program [] (progMore (last stuff)) . rB x
 
 instance FilterCategory Program where
@@ -73,7 +73,33 @@ instance Monoid (Program input output) where
   mappend (Program vA rA) (Program vB rB) =
     Program (mappend vA vB) (mappend rA rB)
 
-scanlS :: (s -> i -> s) -> s -> Program i s
-scanlS step =
-  liftA2 Program return (return . fmap (scanlS step) . step)
+scanlP :: (s -> i -> s) -> s -> Program i s
+scanlP step =
+  fix $ \self ->
+  Program <$> return <*> return . fmap self . step
+
+singleValueP :: b -> Program a b
+singleValueP x = Program [x] Nothing
+
+loopbackPh :: Program a (Either b a) -> Program a b
+loopbackPh program =
+  Program
+  { progVals = stuff >>= mapMaybe gLeft . progVals
+  , progMore = (fmap . fmap) loopbackPh . progMore . last $ stuff
+  }
+  where
+    gLeft (Left x) = Just x
+    gLeft _ = Nothing
+    gRight (Right x) = Just x
+    gRight _ = Nothing
+    stuff =
+      scanl step program
+      . mapMaybe gRight
+      . progVals $ program
+    step (Program _ rest) x = maybe mempty ($ x) rest
+
+loopbackP :: Program b a -> Program a b -> Program a b
+loopbackP loop =
+  loopbackPh .
+  (.) (mappend (Left <$> id) (Right <$> loop))
 

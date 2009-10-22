@@ -16,7 +16,8 @@ Build-type:          Simple
 Library
   hs-Source-Dirs:      src
   Extensions:
-  Build-Depends:       base >= 3 && < 5, GLUT, time, mtl, template-haskell
+  Build-Depends:       base >= 3 && < 5, template-haskell,
+                       GLUT, time
   Exposed-modules:     FRP.Peakachu
                        FRP.Peakachu.Program
                        FRP.Peakachu.Backend

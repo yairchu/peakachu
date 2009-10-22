@@ -42,8 +42,8 @@ mkADTGetterFunc typeName typeVars constructor =
   where
     NormalC name params = constructor
     containedTypes = map snd params
-    resName = mkName $ "g" ++ nameBase name
-    varNames = map (mkName . ("x" ++) . show) [0 .. length params - 1]
+    resName = mkName $ 'g' : nameBase name
+    varNames = map (mkName . ('x' :) . show) [0 .. length params - 1]
     clauseJust =
       NormalB . AppE (ConE (mkName "Just"))
       $ case varNames of
@@ -84,7 +84,7 @@ mkADTGetterCat typeName typeVars constructor =
     catName = mkName "cat"
     NormalC name params = constructor
     containedTypes = map snd params
-    genName pref = mkName $ pref ++ nameBase name
+    genName = mkName . (++ nameBase name)
     resName = genName "c"
     clause =
       NormalB
