@@ -6,7 +6,7 @@ import FRP.Peakachu.Backend (Backend(..), Sink(..))
 import FRP.Peakachu.Program (Program(..))
 import Control.Concurrent.MVar.YC (writeMVar)
 
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (when)
 import Data.Function (fix)
@@ -45,7 +45,10 @@ runProgram backend program = do
       consumeOutput
   sink <- runBackend backend handleInput
   writeMVar sinkVar (Just sink)
-  -- consumeOutput
+  sinkInit sink
+  forkIO $ do
+    threadDelay 300000
+    consumeOutput
   case sinkMainLoop sink of
     Nothing ->
       doWhile $ do

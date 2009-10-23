@@ -16,6 +16,7 @@ import Prelude hiding ((.), id)
 
 data Sink a = Sink
   { sinkConsume :: a -> IO ()
+  , sinkInit :: IO ()
   , sinkMainLoop :: Maybe (IO ())
   , sinkQuitLoop :: IO ()
   }
@@ -25,10 +26,11 @@ combineMainLoops (Just x) (Just y) = Just $ forkIO x >> y
 combineMainLoops x y = orElse x y
 
 instance Monoid (Sink a) where
-  mempty = Sink (const (return ())) Nothing (return ())
+  mempty = Sink (const (return ())) (return ()) Nothing (return ())
   mappend a b =
     Sink
     { sinkConsume = on (liftM2 (>>)) sinkConsume a b
+    , sinkInit = on (>>) sinkQuitLoop a b
     , sinkMainLoop = on combineMainLoops sinkMainLoop a b
     , sinkQuitLoop = on (>>) sinkQuitLoop a b
     }
@@ -63,11 +65,7 @@ instance Category Backend where
     Backend f
     where
       f handler =
-        return Sink
-        { sinkConsume = handler
-        , sinkMainLoop = Nothing
-        , sinkQuitLoop = return ()
-        }
+        return mempty { sinkConsume = handler }
   Backend left . Backend right =
     Backend f
     where
@@ -75,7 +73,9 @@ instance Category Backend where
         sinkLeft <- left handler
         sinkRight <- right . sinkConsume $ sinkLeft
         return sinkRight
-          { sinkMainLoop =
+          { sinkInit =
+              sinkInit sinkLeft >> sinkInit sinkRight
+          , sinkMainLoop =
               combineMainLoops
               (sinkMainLoop sinkLeft) (sinkMainLoop sinkRight)
           , sinkQuitLoop =
