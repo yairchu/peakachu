@@ -21,7 +21,7 @@ import Graphics.UI.GLUT (
   keyboardMouseCallback,
   motionCallback, passiveMotionCallback,
   windowSize, addTimerCallback,
-  clear, flush, mainLoop, leaveMainLoop)
+  clear, flush, mainLoop)
 
 data Image = Image { runImage :: IO ()}
 
@@ -54,7 +54,7 @@ glut =
         { sinkConsume = consume
         , sinkInit = handler $ MouseMotionEvent 0 0
         , sinkMainLoop = Just mainLoop
-        , sinkQuitLoop = leaveMainLoop
+        , sinkQuitLoop = return () -- leaveMainLoop doesn't seem to work
         }
       where
         consume (DrawImage image) = do
