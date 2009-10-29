@@ -10,7 +10,6 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (when)
 import Data.Function (fix)
-import Data.Maybe (isNothing)
 
 doWhile :: Monad m => m Bool -> m ()
 doWhile x = fix $ (x >>=) . flip when
@@ -28,9 +27,9 @@ runProgram backend program = do
         case progVals prog of
           [] -> do
             putMVar progVar prog
-            when (isNothing (progMore prog)) $ do
-              sinkQuitLoop sink
-              writeMVar resumeVar False
+            --when (isNothing (progMore prog)) $ do
+            --  sinkQuitLoop sink
+            --  writeMVar resumeVar False
             return False
           (x : xs) -> do
             putMVar progVar prog { progVals = xs }
@@ -39,8 +38,7 @@ runProgram backend program = do
     handleInput val = do
       prog <- takeMVar progVar
       let
-        Just more = progMore prog
-        m = more val
+        m = progMore prog val
       putMVar progVar $ m { progVals = progVals prog ++ progVals m }
       consumeOutput
   sink <- runBackend backend handleInput

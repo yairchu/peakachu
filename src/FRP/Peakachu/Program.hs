@@ -17,45 +17,44 @@ import Prelude hiding ((.), id)
 -- Differences:
 -- * You know the head
 --   (similar to ListItem (ListT ((->) input)) [output])
--- * You know if you have the last item
 data Program input output = Program
   { progVals :: [output]
-  , progMore :: Maybe (input -> Program input output)
+  , progMore :: input -> Program input output
   }
 
 instance Category Program where
   id =
     f []
     where
-      f = (`Program` Just g)
+      f = (`Program` g)
       g = f . return
   a . Program valsB restB =
     Program
     { progVals = stuff >>= progVals
-    , progMore = fmap more restB
+    , progMore = more
     }
     where
       stuff = scanl step a valsB
-      step (Program _ restA) xB = maybe mempty ($ xB) restA
-      more rB x = Program [] (progMore (last stuff)) . rB x
+      step (Program _ restA) xB = restA xB
+      more x = Program [] (progMore (last stuff)) . restB x
 
 instance FilterCategory Program where
   rid =
     fromJust <$> t []
     where
-      t = (`Program` Just (t . filter isJust . return))
+      t = (`Program` t . filter isJust . return)
 
 instance Functor (Program input) where
   fmap f (Program vals rest) =
-    Program (fmap f vals) ((fmap . fmap . fmap) f rest)
+    Program (fmap f vals) ((fmap . fmap) f rest)
 
 instance Applicative (Program input) where
   pure x =
-    Program (pure x) ((pure . pure . pure) x)
+    Program (pure x) ((pure . pure) x)
   Program valsA restA <*> Program valsB restB =
     Program
-    { progVals = reverse $ zipWith ($) (reverse valsA) (reverse valsB)
-    , progMore = (liftA2 . liftA2) more restA restB
+    { progVals = reverse $ reverse valsA <*> reverse valsB
+    , progMore = liftA2 more restA restB
     }
     where
       more a b =
@@ -69,23 +68,23 @@ instance Applicative (Program input) where
       p _ s = s
 
 instance Monoid (Program input output) where
-  mempty = Program [] Nothing
+  mempty = Program [] mempty
   mappend (Program vA rA) (Program vB rB) =
     Program (mappend vA vB) (mappend rA rB)
 
 scanlP :: (s -> i -> s) -> s -> Program i s
 scanlP step =
   fix $ \self ->
-  Program <$> return <*> return . fmap self . step
+  Program <$> return <*> fmap self . step
 
 singleValueP :: b -> Program a b
-singleValueP x = Program [x] Nothing
+singleValueP x = Program [x] mempty
 
 loopbackPh :: Program a (Either b a) -> Program a b
 loopbackPh program =
   Program
   { progVals = stuff >>= mapMaybe gLeft . progVals
-  , progMore = (fmap . fmap) loopbackPh . progMore . last $ stuff
+  , progMore = fmap loopbackPh . progMore . last $ stuff
   }
   where
     gLeft (Left x) = Just x
@@ -96,7 +95,7 @@ loopbackPh program =
       scanl step program
       . mapMaybe gRight
       . progVals $ program
-    step (Program _ rest) x = maybe mempty ($ x) rest
+    step (Program _ rest) x = rest x
 
 loopbackP :: Program b a -> Program a b -> Program a b
 loopbackP loop =
