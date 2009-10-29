@@ -32,7 +32,7 @@ instance Applicative f => Applicative (InfiniteStreamItem f) where
 newtype InfiniteStreamT f a = InfStrT
   { runInfStrT :: f (InfiniteStreamItem (InfiniteStreamT f) a)
   }
-$(mkNewtypeInFuncs [1,2] ''InfiniteStreamT)
+$(mkInNewtypeFuncs [1,2] ''InfiniteStreamT)
 
 instance Functor f => Functor (InfiniteStreamT f) where
   fmap = inInfiniteStreamT . fmap . fmap
@@ -48,6 +48,7 @@ instance (Applicative f, Monoid a) => Monoid (InfiniteStreamT f a) where
 newtype InfiniteStreamConverter a b = InfStrConv
   { runInfStrConv :: InfiniteStreamT ((->) a) b
   } deriving (Applicative, Functor, Monoid)
+$(mkWithNewtypeFuncs [2] ''InfiniteStreamConverter)
 
 instance Category InfiniteStreamConverter where
   id = InfStrConv . fix $ InfStrT . flip InfStrIt
@@ -55,11 +56,19 @@ instance Category InfiniteStreamConverter where
     InfStrConv . InfStrT $ f
     where
       f x =
-        InfStrIt l . runInfStrConv $ InfStrConv ls . InfStrConv rs
+        InfStrIt l $ withInfiniteStreamConverter2 (.) ls rs
         where
           InfStrIt r rs = run right x
           InfStrIt l ls = run left r
           run = runInfStrT . runInfStrConv
+
+newtype InfiniteProgram a b = InfProg
+  { runInfProg :: InfiniteStreamItem (InfiniteStreamT ((->) a)) [b]
+  }
+$(mkInNewtypeFuncs [1] ''InfiniteProgram)
+
+instance Functor (InfiniteProgram a) where
+  fmap = inInfiniteProgram . fmap . fmap
 
 -- | Program is similar to 
 -- ListT ((->) input) [output].

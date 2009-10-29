@@ -1,5 +1,5 @@
 module Data.Newtype
-  ( mkNewtypeInFuncs
+  ( mkInNewtypeFuncs, mkWithNewtypeFuncs
   ) where
 
 import Control.Applicative
@@ -19,27 +19,27 @@ typeAddSuf suf (AppT left right) =
   AppT (typeAddSuf suf left) (typeAddSuf suf right)
 typeAddSuf _ x = x
 
-mkNewtypeInFuncs :: [Int] -> Name -> Q [Dec]
-mkNewtypeInFuncs idx typeName = do
-  info <- reify typeName
-  return $ idx >>= mkNewTypeInFunc info
+data NewtypeFunc = In | With
 
-mkNewTypeInFunc :: Info -> Int -> [Dec]
-mkNewTypeInFunc info funcIdx =
+mkInNewtypeFuncs :: [Int] -> Name -> Q [Dec]
+mkInNewtypeFuncs idx typeName = do
+  info <- reify typeName
+  return $ idx >>= mkNewTypeFunc info In
+
+mkWithNewtypeFuncs :: [Int] -> Name -> Q [Dec]
+mkWithNewtypeFuncs idx typeName = do
+  info <- reify typeName
+  return $ idx >>= mkNewTypeFunc info With
+
+mkNewTypeFunc :: Info -> NewtypeFunc -> Int -> [Dec]
+mkNewTypeFunc info whatFunc funcIdx =
   [ SigD resName
     . ForallT
       ( nameAddSuf <$> typeSuffixes <*> typeVars )
       ( typeAddSuf <$> typeSuffixes <*> context )
-    . AppT (AppT ArrowT (mkFuncType inType))
-    $ mkFuncType fullType
-  , FunD resName
-    [ Clause (VarP fName : (ConP consName . return . VarP <$> xNames))
-      ( NormalB
-      . AppE (ConE consName)
-      . foldl AppE (VarE fName)
-      $ VarE <$> xNames
-      ) []
-    ]
+    . AppT (AppT ArrowT (mkFuncType inputType))
+    $ mkFuncType outputType
+  , FunD resName [clause]
   ]
   where
     TyConI newtypeDef = info
@@ -53,7 +53,7 @@ mkNewTypeInFunc info funcIdx =
     xNames
       | 1 == funcIdx = [mkName "x"]
       | otherwise = mkName . ('x' :) . show <$> [0 .. funcIdx - 1]
-    resName = mkName $ "in" ++ nameBase typeName ++ nameSuf
+    resName = mkName $ prefix ++ nameBase typeName ++ nameSuf
     nameSuf
       | 1 == funcIdx = ""
       | otherwise = show funcIdx
@@ -62,4 +62,26 @@ mkNewTypeInFunc info funcIdx =
     mkFuncType base =
       foldr AppT (typeAddSuf (last typeSuffixes) base)
       $ AppT ArrowT . (`typeAddSuf` base) <$> init typeSuffixes
-
+    withResName = mkName "res"
+    (prefix, inputType, outputType, clause) =
+      case whatFunc of
+        In ->
+          ( "in", inType, fullType
+          , Clause (VarP fName : (ConP consName . return . VarP <$> xNames))
+            ( NormalB
+            . AppE (ConE consName)
+            . foldl AppE (VarE fName)
+            $ VarE <$> xNames
+            ) []
+          )
+        With ->
+          ( "with", fullType, inType
+          , Clause (VarP <$> fName : xNames)
+            (NormalB (VarE withResName))
+            [ ValD (ConP consName [VarP withResName])
+              ( NormalB
+              . foldl AppE (VarE fName)
+              $ AppE (ConE consName) . VarE <$> xNames
+              ) []
+            ]
+          )
