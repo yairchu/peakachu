@@ -17,6 +17,7 @@ Library
   hs-Source-Dirs:      src
   Extensions:
   Build-Depends:       base >= 3 && < 5, template-haskell,
+                       TypeCompose, derive,
                        GLUT, time
   Exposed-modules:     FRP.Peakachu
                        FRP.Peakachu.Program
@@ -29,5 +30,6 @@ Library
                        Control.Concurrent.MVar.YC
                        Control.FilterCategory
                        Data.ADT.Getters
+                       Data.Newtype
   ghc-options:         -O2 -Wall
 

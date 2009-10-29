@@ -1,16 +1,44 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
+
 module FRP.Peakachu.Program
   ( Program(..), scanlP, singleValueP, loopbackP
   ) where
 
 import Control.FilterCategory (FilterCategory(..))
 
-import Control.Applicative (Applicative(..), (<$>), liftA2)
+import Control.Applicative (Applicative(..), (<$>))
 import Control.Category (Category(..))
+import Control.Compose
+import Data.DeriveTH
 import Data.Function (fix)
+import Data.Newtype
 import Data.Maybe (fromJust, isJust, mapMaybe)
 import Data.Monoid (Monoid(..))
 
 import Prelude hiding ((.), id)
+
+data InfiStream a = InfiStream
+  { headIS :: a
+  , tailIS :: InfiStream a
+  }
+$(derive makeFunctor ''InfiStream)
+
+instance Applicative InfiStream where
+  pure x = InfiStream x (pure x)
+  InfiStream x xs <*> InfiStream y ys =
+    InfiStream (x y) (xs <*> ys)
+
+newtype InfiStrTrans a b = InfiStrTrans
+  { runInfiStrTrans :: O InfiStream ((->) a) b
+  } deriving (Applicative, Functor)
+$(mkNewtypeInFuncs 1 ''InfiStrTrans)
+
+instance Monoid b => Monoid (InfiStrTrans a b) where
+  mempty = pure mempty
+  mappend (InfiStrTrans left) (InfiStrTrans right) = undefined
+
+blah :: Monoid b => InfiStrTrans a b -> InfiStrTrans a b -> InfiStrTrans a b
+blah = mappend
 
 -- | Program is similar to 
 -- ListT ((->) input) [output].
@@ -50,11 +78,11 @@ instance Functor (Program input) where
 
 instance Applicative (Program input) where
   pure x =
-    Program (pure x) ((pure . pure) x)
+    Program (repeat x) ((pure . pure) x)
   Program valsA restA <*> Program valsB restB =
     Program
-    { progVals = reverse $ reverse valsA <*> reverse valsB
-    , progMore = liftA2 more restA restB
+    { progVals = zipWith ($) valsA valsB
+    , progMore = more <$> restA <*> restB
     }
     where
       more a b =
@@ -64,7 +92,7 @@ instance Applicative (Program input) where
         where
           r@(Program _ rMore) = p valsA a <*> p valsB b
       p [] (Program [] m) = Program [] m
-      p prevV (Program [] m) = Program [last prevV] m
+      p (x:_) (Program [] m) = Program [x] m
       p _ s = s
 
 instance Monoid (Program input output) where
