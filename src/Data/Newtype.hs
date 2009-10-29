@@ -1,4 +1,6 @@
-module Data.Newtype where
+module Data.Newtype
+  ( mkNewtypeInFuncs
+  ) where
 
 import Control.Applicative
 import Language.Haskell.TH.Syntax
@@ -17,33 +19,25 @@ typeAddSuf suf (AppT left right) =
   AppT (typeAddSuf suf left) (typeAddSuf suf right)
 typeAddSuf _ x = x
 
-mkNewtypeInFuncs :: Int -> Name -> Q [Dec]
-mkNewtypeInFuncs inMax typeName = do
+mkNewtypeInFuncs :: [Int] -> Name -> Q [Dec]
+mkNewtypeInFuncs idx typeName = do
   info <- reify typeName
-  return $ [1..inMax] >>= mkNewTypeInFunc info
+  return $ idx >>= mkNewTypeInFunc info
 
 mkNewTypeInFunc :: Info -> Int -> [Dec]
 mkNewTypeInFunc info funcIdx =
-  [ SigD inFuncName
+  [ SigD resName
     . ForallT
       ( nameAddSuf <$> typeSuffixes <*> typeVars )
       ( typeAddSuf <$> typeSuffixes <*> context )
-    . AppT 
-      ( AppT ArrowT
-        ( AppT
-          ( AppT ArrowT (typeAddSuf "0" inType) )
-          ( typeAddSuf "1" inType )
-        )
-      )
-    . AppT
-      ( AppT ArrowT (typeAddSuf "0" fullType) )
-    . typeAddSuf "1" $ fullType
-  , FunD inFuncName
-    [ Clause [VarP fName, ConP consName [VarP xName]]
+    . AppT (AppT ArrowT (mkFuncType inType))
+    $ mkFuncType fullType
+  , FunD resName
+    [ Clause (VarP fName : (ConP consName . return . VarP <$> xNames))
       ( NormalB
       . AppE (ConE consName)
-      . AppE (VarE fName)
-      . VarE $ xName
+      . foldl AppE (VarE fName)
+      $ VarE <$> xNames
       ) []
     ]
   ]
@@ -56,8 +50,16 @@ mkNewTypeInFunc info funcIdx =
         RecC c [(_, _, i)] -> (c, i)
         _ -> undefined
     fName = mkName "f"
-    xName = mkName "x"
-    inFuncName = mkName $ "in" ++ nameBase typeName
-    typeSuffixes = ["0", "1"]
+    xNames
+      | 1 == funcIdx = [mkName "x"]
+      | otherwise = mkName . ('x' :) . show <$> [0 .. funcIdx - 1]
+    resName = mkName $ "in" ++ nameBase typeName ++ nameSuf
+    nameSuf
+      | 1 == funcIdx = ""
+      | otherwise = show funcIdx
+    typeSuffixes = show <$> [0 .. funcIdx]
     fullType = foldl AppT (ConT typeName) (map VarT typeVars)
+    mkFuncType base =
+      foldr AppT (typeAddSuf (last typeSuffixes) base)
+      $ AppT ArrowT . (`typeAddSuf` base) <$> init typeSuffixes
 

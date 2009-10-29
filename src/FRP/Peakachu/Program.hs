@@ -6,10 +6,8 @@ module FRP.Peakachu.Program
 
 import Control.FilterCategory (FilterCategory(..))
 
-import Control.Applicative (Applicative(..), (<$>))
+import Control.Applicative (Applicative(..), (<$>), liftA2)
 import Control.Category (Category(..))
-import Control.Compose
-import Data.DeriveTH
 import Data.Function (fix)
 import Data.Newtype
 import Data.Maybe (fromJust, isJust, mapMaybe)
@@ -17,28 +15,51 @@ import Data.Monoid (Monoid(..))
 
 import Prelude hiding ((.), id)
 
-data InfiStream a = InfiStream
+data InfiniteStreamItem m a = InfStrIt
   { headIS :: a
-  , tailIS :: InfiStream a
+  , tailIS :: m a
   }
-$(derive makeFunctor ''InfiStream)
 
-instance Applicative InfiStream where
-  pure x = InfiStream x (pure x)
-  InfiStream x xs <*> InfiStream y ys =
-    InfiStream (x y) (xs <*> ys)
+instance Functor f => Functor (InfiniteStreamItem f) where
+  fmap func (InfStrIt x xs) =
+    InfStrIt (func x) (fmap func xs)
 
-newtype InfiStrTrans a b = InfiStrTrans
-  { runInfiStrTrans :: O InfiStream ((->) a) b
-  } deriving (Applicative, Functor)
-$(mkNewtypeInFuncs 1 ''InfiStrTrans)
+instance Applicative f => Applicative (InfiniteStreamItem f) where
+  pure x = InfStrIt x (pure x)
+  InfStrIt x xs <*> InfStrIt y ys =
+    InfStrIt (x y) (xs <*> ys)
 
-instance Monoid b => Monoid (InfiStrTrans a b) where
+newtype InfiniteStreamT f a = InfStrT
+  { runInfStrT :: f (InfiniteStreamItem (InfiniteStreamT f) a)
+  }
+$(mkNewtypeInFuncs [1,2] ''InfiniteStreamT)
+
+instance Functor f => Functor (InfiniteStreamT f) where
+  fmap = inInfiniteStreamT . fmap . fmap
+
+instance Applicative f => Applicative (InfiniteStreamT f) where
+  pure = InfStrT . pure . pure
+  (<*>) = (inInfiniteStreamT2 . liftA2) (<*>)
+
+instance (Applicative f, Monoid a) => Monoid (InfiniteStreamT f a) where
   mempty = pure mempty
-  mappend (InfiStrTrans left) (InfiStrTrans right) = undefined
+  mappend = liftA2 mappend
 
-blah :: Monoid b => InfiStrTrans a b -> InfiStrTrans a b -> InfiStrTrans a b
-blah = mappend
+newtype InfiniteStreamConverter a b = InfStrConv
+  { runInfStrConv :: InfiniteStreamT ((->) a) b
+  } deriving (Applicative, Functor, Monoid)
+
+instance Category InfiniteStreamConverter where
+  id = InfStrConv . fix $ InfStrT . flip InfStrIt
+  left . right =
+    InfStrConv . InfStrT $ f
+    where
+      f x =
+        InfStrIt l . runInfStrConv $ InfStrConv ls . InfStrConv rs
+        where
+          InfStrIt r rs = run right x
+          InfStrIt l ls = run left r
+          run = runInfStrT . runInfStrConv
 
 -- | Program is similar to 
 -- ListT ((->) input) [output].
