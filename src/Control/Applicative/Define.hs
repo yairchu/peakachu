@@ -1,17 +1,27 @@
 module Control.Applicative.Define
-  ( mkApplicative
+  ( Applicable, mkApplicative
   ) where
 
 import Control.Applicative ((<$>))
 import Language.Haskell.TH.Syntax
 
-mkApplicative :: Name -> [[String]] -> Q [Dec]
-mkApplicative typeName paths = do
-  info <- reify typeName
-  return $ mkApplicative' info paths
+class Applicable f where
+  applicableDummy :: a -> f a
+  applicableDummy = undefined
 
-mkApplicative' :: Info -> [[String]] -> [Dec]
-mkApplicative' info [path] =
+mkApplicative :: Q [Dec] -> [[String]] -> Q [Dec]
+mkApplicative mInstDec paths = do
+  [InstanceD context (AppT _ insType) []] <- mInstDec
+  let
+    typeName = get insType
+    get (ConT r) = r
+    get (AppT r _) = get r
+    get _ = undefined
+  info <- reify typeName
+  return $ mkApplicative' info insType context paths
+
+mkApplicative' :: Info -> Type -> [Type] -> [[String]] -> [Dec]
+mkApplicative' info instanceType context [path] =
   [ instanceDef "Functor"
     [ FunD (mkName "fmap")
       [ Clause [] (NormalB (liftFunc 1)) []
@@ -29,14 +39,18 @@ mkApplicative' info [path] =
   where
     apply = VarE . mkName $ "$"
     instanceDef typeclass =
-      InstanceD context . AppT (ConT (mkName typeclass)) $ instanceType
+      InstanceD (map (procCxt typeclass) context ++ typeContext) . AppT (ConT (mkName typeclass)) $ instanceType
+    procCxt typeclass orig@(AppT (ConT someclass) x)
+      | nameBase someclass == "Applicable" =
+        AppT (ConT (mkName typeclass)) x
+      | otherwise = orig
+    procCxt typeclass x = x
     liftFunc numArgs =
       foldr1 compose $
-      VarE . mkName . (++ show numArgs) <$> path
+      VarE . mkName . (++ show numArgs) <$> ("in" ++ nameBase typeName) : path
     compose l r = InfixE (Just l) (VarE (mkName ("."))) (Just r)
-    instanceType = foldl AppT (ConT typeName) $ VarT <$> init typeVars
     TyConI typedef = info
-    (context, typeName, typeVars, constructor) =
+    (typeContext, typeName, _, constructor) =
       case typedef of
         NewtypeD cxt tn tv cn _ -> (cxt, tn, tv, cn)
         DataD cxt tn tv [cn] _ -> (cxt, tn, tv, cn)

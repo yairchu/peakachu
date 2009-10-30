@@ -54,14 +54,11 @@ lift1 = fmap
 lift2 :: Applicative f => (a -> b -> c) -> f a -> f b -> f c
 lift2 = liftA2
 
-instance Functor f => Functor (InfiniteStreamT f) where
-  fmap  = inInfiniteStreamT1 . lift1 . lift1
-instance Applicative f => Applicative (InfiniteStreamT f) where
-  pure  = inInfiniteStreamT0 . lift0 . lift0
-  (<*>) = inInfiniteStreamT2 . lift2 . lift2 $ ($)
-
-$(mkApplicative ''Identity [["inIdentity"]])
-$(mkApplicative ''InfiniteProgram [["inInfiniteProgram", "lift", "withZipList", "lift"]])
+$(mkApplicative [d| instance Applicable Identity |] [[]])
+$(mkApplicative [d| instance Applicable f => Applicable (InfiniteStreamT f) |]
+  [["lift", "lift"]])
+$(mkApplicative [d| instance Applicable (InfiniteProgram a) |]
+  [["lift", "withZipList", "lift"]])
 
 instance Functor f => Functor (InfiniteStreamItem f) where
   fmap func (InfStrIt x xs) =
