@@ -10,40 +10,13 @@ import Control.Applicative (Applicative(..), (<$>), ZipList(..), liftA2)
 import Control.Applicative.Define
 import Control.Category (Category(..))
 import Control.Compose
+import Control.Monad (MonadPlus(..), liftM, ap)
 import Data.Function (fix)
-import Data.Newtype
 import Data.Maybe (fromJust, isJust, mapMaybe, catMaybes)
 import Data.Monoid (Monoid(..))
+import Data.Newtype
 
 import Prelude hiding ((.), id)
-
--- mtl's Identity is not an Applicative
-newtype Identity a = Identity a
-$(mkInNewtypeFuncs [0..2] ''Identity)
-$(mkWithNewtypeFuncs [0..2] ''Identity)
-
-data InfiniteStreamItem m a = InfStrIt
-  { headIS :: a
-  , tailIS :: m a
-  }
-
-newtype InfiniteStreamT f a = InfStrT
-  { runInfStrT :: f (InfiniteStreamItem (InfiniteStreamT f) a)
-  }
-$(mkInNewtypeFuncs [0..2] ''InfiniteStreamT)
-
-newtype InfiniteProgram a b = InfProg
-  { runInfProg :: InfiniteStreamItem (InfiniteStreamT ((->) a)) [b]
-  }
-$(mkInNewtypeFuncs [0..2] ''InfiniteProgram)
-$(mkWithNewtypeFuncs [2] ''InfiniteProgram)
-$(mkWithNewtypeFuncs [0..2] ''ZipList)
-
-newtype FiniteProgram a b = FinProg
-  { runFinProg :: InfiniteStreamItem (InfiniteStreamT (O Maybe ((->) a))) [b]
-  }
-$(mkInNewtypeFuncs [1] ''FiniteProgram)
-$(mkWithNewtypeFuncs [2] ''FiniteProgram)
 
 lift0 :: Applicative f => a -> f a
 lift0 = pure
@@ -54,14 +27,38 @@ lift1 = fmap
 lift2 :: Applicative f => (a -> b -> c) -> f a -> f b -> f c
 lift2 = liftA2
 
+-- mtl's Identity is not an Applicative
+newtype Identity a = Identity a
+$(mkWithNewtypeFuncs [0..2] ''Identity)
 $(mkApplicative [d| instance Applicable Identity |] [[]])
-$(mkApplicative [d| instance Applicable f => Applicable (InfiniteStreamT f) |]
-  [["lift", "lift"]])
-$(mkApplicative [d| instance Applicable (InfiniteProgram a) |]
-  [["lift", "withZipList", "lift"]])
+
+data InfiniteStreamItem m a = InfStrIt
+  { headIS :: a
+  , tailIS :: m a
+  }
 $(mkApplicative
   [d| instance Applicable f => Applicable (InfiniteStreamItem f) |]
   [["withIdentity", "lift"], ["lift"]])
+
+newtype InfiniteStreamT f a = InfStrT
+  { runInfStrT :: f (InfiniteStreamItem (InfiniteStreamT f) a)
+  }
+$(mkApplicative [d| instance Applicable f => Applicable (InfiniteStreamT f) |]
+  [["lift", "lift"]])
+
+newtype InfiniteProgram a b = InfProg
+  { runInfProg :: InfiniteStreamItem (InfiniteStreamT ((->) a)) [b]
+  }
+$(mkInNewtypeFuncs [0,2] ''InfiniteProgram)
+$(mkWithNewtypeFuncs [2] ''InfiniteProgram)
+$(mkWithNewtypeFuncs [0..2] ''ZipList)
+$(mkApplicative [d| instance Applicable (InfiniteProgram a) |]
+  [["lift", "withZipList", "lift"]])
+
+newtype FiniteProgram a b = FinProg
+  { runFinProg :: InfiniteStreamItem (InfiniteStreamT (O Maybe ((->) a))) [b]
+  }
+$(mkWithNewtypeFuncs [1,2] ''FiniteProgram)
 
 instance Monoid a => Monoid (Identity a) where
   mempty  = lift0 mempty
@@ -118,17 +115,51 @@ instance Category FiniteProgram where
           (InfStrIt [] (tailIS lastStuff))
           . moreFunc
 
+appendPrograms :: FiniteProgram a b -> FiniteProgram a b -> FiniteProgram a b
+appendPrograms left right =
+  FinProg $ case unO (runInfStrT leftMore) of
+    Nothing -> InfStrIt (leftStart ++ rightStart) rightMore
+    Just more ->
+      InfStrIt leftStart
+      . InfStrT . O . Just
+      $ withFiniteProgram1 (`appendPrograms` right) . more
+  where
+    InfStrIt leftStart leftMore = runFinProg left
+    InfStrIt rightStart rightMore = runFinProg right
+
+doneProgram :: FiniteProgram a b
+doneProgram = FinProg . InfStrIt [] . InfStrT . O $ Nothing
+
+concatPrograms :: [FiniteProgram a b] -> FiniteProgram a b
+concatPrograms = foldr appendPrograms doneProgram
+
 instance Monad (FiniteProgram a) where
   return = FinProg . (`InfStrIt` InfStrT (O Nothing)) . return
   left >>= right =
-    undefined
+    concatPrograms
+    . (map right leftStart ++)
+    . return
+    . FinProg
+    . InfStrIt []
+    . InfStrT
+    . O
+    . fmap f
+    . unO
+    . runInfStrT
+    $ leftMore
     where
       InfStrIt leftStart leftMore = runFinProg left
+      f more = withFiniteProgram1 (>>= right) . more
 
---data FiniteProgram a b = FinProg
---  { fpVals :: [b]
---  , fpMore :: Maybe (input -> FiniteProgram a b)
---  }
+instance Functor (FiniteProgram a) where
+  fmap  = liftM
+instance Applicative (FiniteProgram a) where
+  pure  = return
+  (<*>) = ap
+
+instance MonadPlus (FiniteProgram a) where
+  mzero = doneProgram
+  mplus = appendPrograms
 
 data Program input output = Program
   { progVals :: [output]
