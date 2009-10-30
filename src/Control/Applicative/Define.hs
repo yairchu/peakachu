@@ -21,22 +21,17 @@ mkApplicative mInstDec paths = do
   return $ mkApplicative' info insType context paths
 
 mkApplicative' :: Info -> Type -> [Type] -> [[String]] -> [Dec]
-mkApplicative' info instanceType context [path] =
+mkApplicative' info instanceType context paths =
   [ instanceDef "Functor"
-    [ FunD (mkName "fmap")
-      [ Clause [] (NormalB (liftFunc 1)) []
-      ]
+    [ FunD (mkName "fmap") [normClause (1::Int)]
     ]
   , instanceDef "Applicative"
-    [ FunD (mkName "pure")
-      [ Clause [] (NormalB (liftFunc 0)) []
-      ]
-    , FunD (mkName "<*>")
-      [ Clause [] (NormalB (InfixE (Just (liftFunc 2)) apply (Just apply))) []
-      ]
+    [ FunD (mkName "pure") [normClause (0::Int)]
+    , FunD (mkName "<*>") [clause [] (`AppE` apply) (2::Int)]
     ]
   ]
   where
+    argName i j = mkName $ "x_" ++ show i ++ "_" ++ show j
     apply = VarE . mkName $ "$"
     instanceDef typeclass =
       InstanceD (map (procCxt typeclass) context ++ typeContext) . AppT (ConT (mkName typeclass)) $ instanceType
@@ -44,15 +39,36 @@ mkApplicative' info instanceType context [path] =
       | nameBase someclass == "Applicable" =
         AppT (ConT (mkName typeclass)) x
       | otherwise = orig
-    procCxt typeclass x = x
-    liftFunc numArgs =
+    procCxt _ x = x
+    normClause = clause [VarP nameFunc] (`AppE` VarE nameFunc)
+    clause prefArgs proc order =
+      Clause
+      (prefArgs ++ map mkPat [0 .. order-1])
+      (NormalB altLiftFunc)
+      []
+      where
+        altLiftFunc =
+          foldl AppE (ConE consName) . zipWith go [0::Int ..] $ paths
+        go consIdx path =
+          foldl AppE (proc (liftFunc path order))
+          $ VarE . (`argName` consIdx) <$> [0 .. order-1]
+    mkPat i =
+      ConP consName $ VarP . argName i <$> [0 .. consNumArgs-1]
+    nameFunc = mkName "func"
+    liftFunc [] _ = VarE . mkName $ "id"
+    liftFunc path numArgs =
       foldr1 compose $
-      VarE . mkName . (++ show numArgs) <$> ("in" ++ nameBase typeName) : path
+      VarE . mkName . (++ show numArgs) <$> path
     compose l r = InfixE (Just l) (VarE (mkName ("."))) (Just r)
     TyConI typedef = info
-    (typeContext, typeName, _, constructor) =
+    (typeContext, constructor) =
       case typedef of
-        NewtypeD cxt tn tv cn _ -> (cxt, tn, tv, cn)
-        DataD cxt tn tv [cn] _ -> (cxt, tn, tv, cn)
+        NewtypeD cxt _ _ cn _ -> (cxt, cn)
+        DataD cxt _ _ [cn] _ -> (cxt, cn)
         _ -> undefined
+    (consName, consNumArgs) = digCons constructor
+    digCons (NormalC n a) = (n, length a)
+    digCons (RecC n a) = (n, length a)
+    digCons (InfixC _ n _) = (n, 2)
+    digCons (ForallC _ _ x) = digCons x
 

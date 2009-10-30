@@ -59,21 +59,9 @@ $(mkApplicative [d| instance Applicable f => Applicable (InfiniteStreamT f) |]
   [["lift", "lift"]])
 $(mkApplicative [d| instance Applicable (InfiniteProgram a) |]
   [["lift", "withZipList", "lift"]])
-
-instance Functor f => Functor (InfiniteStreamItem f) where
-  fmap func (InfStrIt x xs) =
-    InfStrIt
-    ((withIdentity1 . lift1) func x)
-    (lift1 func xs)
-instance Applicative f => Applicative (InfiniteStreamItem f) where
-  pure x =
-    InfStrIt
-    ((withIdentity0 . lift0) x)
-    (lift0 x)
-  InfStrIt x xs <*> InfStrIt y ys =
-    InfStrIt
-    ((withIdentity2 . lift2) ($) x y)
-    (lift2 ($) xs ys)
+$(mkApplicative
+  [d| instance Applicable f => Applicable (InfiniteStreamItem f) |]
+  [["withIdentity", "lift"], ["lift"]])
 
 instance Monoid a => Monoid (Identity a) where
   mempty  = lift0 mempty
