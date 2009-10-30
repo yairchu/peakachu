@@ -27,6 +27,7 @@ Library
                        FRP.Peakachu.Backend.GLUT.Getters
                        FRP.Peakachu.Backend.StdIO
                        FRP.Peakachu.Backend.Time
+                       Control.Applicative.Define
                        Control.Concurrent.MVar.YC
                        Control.FilterCategory
                        Data.ADT.Getters

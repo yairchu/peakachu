@@ -2,7 +2,7 @@ module Data.Newtype
   ( mkInNewtypeFuncs, mkWithNewtypeFuncs
   ) where
 
-import Control.Applicative
+import Control.Applicative ((<$>), (<*>))
 import Language.Haskell.TH.Syntax
 
 nameAddSuf :: String -> Name -> Name
@@ -50,13 +50,8 @@ mkNewTypeFunc info whatFunc funcIdx =
         RecC c [(_, _, i)] -> (c, i)
         _ -> undefined
     fName = mkName "f"
-    xNames
-      | 1 == funcIdx = [mkName "x"]
-      | otherwise = mkName . ('x' :) . show <$> [0 .. funcIdx - 1]
-    resName = mkName $ prefix ++ nameBase typeName ++ nameSuf
-    nameSuf
-      | 1 == funcIdx = ""
-      | otherwise = show funcIdx
+    xNames = mkName . ('x' :) . show <$> [0 .. funcIdx - 1]
+    resName = mkName $ prefix ++ nameBase typeName ++ show funcIdx
     typeSuffixes = show <$> [0 .. funcIdx]
     fullType = foldl AppT (ConT typeName) (map VarT typeVars)
     mkFuncType base =
