@@ -30,6 +30,7 @@ Library
                        Control.Applicative.Define
                        Control.Concurrent.MVar.YC
                        Control.FilterCategory
+                       Control.Lift
                        Data.ADT.Getters
                        Data.Newtype
   ghc-options:         -O2 -Wall

@@ -1,5 +1,5 @@
 module Control.Applicative.Define
-  ( Applicable, mkApplicative
+  ( Applicable, mkApplicative, mkApplicativeAndPointed
   ) where
 
 import Control.Applicative ((<$>))
@@ -10,7 +10,15 @@ class Applicable f where
   applicableDummy = undefined
 
 mkApplicative :: Q [Dec] -> [[String]] -> Q [Dec]
-mkApplicative mInstDec paths = do
+mkApplicative = mkAppNPoi False
+
+-- | Pointed not also generated with Applicative.
+-- So as to not force a dependency of category-extras on users
+mkApplicativeAndPointed :: Q [Dec] -> [[String]] -> Q [Dec]
+mkApplicativeAndPointed = mkAppNPoi True
+
+mkAppNPoi :: Bool -> Q [Dec] -> [[String]] -> Q [Dec]
+mkAppNPoi andPointed mInstDec paths = do
   [InstanceD context (AppT _ insType) []] <- mInstDec
   let
     typeName = get insType
@@ -18,16 +26,20 @@ mkApplicative mInstDec paths = do
     get (AppT r _) = get r
     get _ = undefined
   info <- reify typeName
-  return $ mkApplicative' info insType context paths
+  return $ mkApp andPointed info insType context paths
 
-mkApplicative' :: Info -> Type -> [Type] -> [[String]] -> [Dec]
-mkApplicative' info instanceType context paths =
+mkApp :: Bool -> Info -> Type -> [Type] -> [[String]] -> [Dec]
+mkApp andPointed info instanceType context paths =
   [ instanceDef "Functor"
-    [ FunD (mkName "fmap") [normClause (1::Int)]
+    [ FunD (mkName "fmap") [normClause (1::Int) "fmap"]
     ]
   , instanceDef "Applicative"
-    [ FunD (mkName "pure") [normClause (0::Int)]
-    , FunD (mkName "<*>") [clause [] (`AppE` apply) (2::Int)]
+    [ FunD (mkName "pure") [normClause (0::Int) "pure"]
+    , FunD (mkName "<*>") [clause [] (`AppE` apply) (2::Int) "liftA2"]
+    ]
+  ] ++ filter (const andPointed)
+  [ instanceDef "Pointed"
+    [ FunD (mkName "point") [normClause (1::Int) "point"]
     ]
   ]
   where
@@ -41,7 +53,7 @@ mkApplicative' info instanceType context paths =
       | otherwise = orig
     procCxt _ x = x
     normClause = clause [VarP nameFunc] (`AppE` VarE nameFunc)
-    clause prefArgs proc order =
+    clause prefArgs proc order appLift =
       Clause
       (prefArgs ++ map mkPat [0 .. order-1])
       (NormalB altLiftFunc)
@@ -50,15 +62,18 @@ mkApplicative' info instanceType context paths =
         altLiftFunc =
           foldl AppE (ConE consName) . zipWith go [0::Int ..] $ paths
         go consIdx path =
-          foldl AppE (proc (liftFunc path order))
+          foldl AppE (proc (liftFunc path order appLift))
           $ VarE . (`argName` consIdx) <$> [0 .. order-1]
     mkPat i =
       ConP consName $ VarP . argName i <$> [0 .. consNumArgs-1]
     nameFunc = mkName "func"
-    liftFunc [] _ = VarE . mkName $ "id"
-    liftFunc path numArgs =
+    liftFunc [] _ _ = VarE . mkName $ "id"
+    liftFunc path numArgs appLift =
       foldr1 compose $
-      VarE . mkName . (++ show numArgs) <$> path
+      VarE . mkName . modPathItem <$> path
+      where
+        modPathItem "lift" = appLift
+        modPathItem x = x ++ show numArgs
     compose l r = InfixE (Just l) (VarE (mkName ("."))) (Just r)
     TyConI typedef = info
     (typeContext, constructor) =

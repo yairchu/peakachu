@@ -2,6 +2,7 @@
 
 module FRP.Peakachu.Program
   ( Program(..), scanlP, singleValueP, loopbackP
+  , mergeFinProgs
   ) where
 
 import Control.FilterCategory (FilterCategory(..))
@@ -18,19 +19,13 @@ import Data.Newtype
 
 import Prelude hiding ((.), id)
 
-lift0 :: Applicative f => a -> f a
-lift0 = pure
-
-lift1 :: Functor f => (a -> b) -> f a -> f b
-lift1 = fmap
-
-lift2 :: Applicative f => (a -> b -> c) -> f a -> f b -> f c
-lift2 = liftA2
-
 -- mtl's Identity is not an Applicative
 newtype Identity a = Identity a
 $(mkWithNewtypeFuncs [0..2] ''Identity)
 $(mkApplicative [d| instance Applicable Identity |] [[]])
+instance Monoid a => Monoid (Identity a) where
+  mempty  = pure mempty
+  mappend = liftA2 mappend
 
 data InfiniteStreamItem m a = InfStrIt
   { headIS :: a
@@ -39,17 +34,22 @@ data InfiniteStreamItem m a = InfStrIt
 $(mkApplicative
   [d| instance Applicable f => Applicable (InfiniteStreamItem f) |]
   [["withIdentity", "lift"], ["lift"]])
+instance (Applicative f, Monoid a) => Monoid (InfiniteStreamItem f a) where
+  mempty  = pure mempty
+  mappend = liftA2 mappend
 
 newtype InfiniteStreamT f a = InfStrT
   { runInfStrT :: f (InfiniteStreamItem (InfiniteStreamT f) a)
   }
 $(mkApplicative [d| instance Applicable f => Applicable (InfiniteStreamT f) |]
   [["lift", "lift"]])
+instance (Applicative f, Monoid a) => Monoid (InfiniteStreamT f a) where
+  mempty  = pure mempty
+  mappend = liftA2 mappend
 
 newtype InfiniteProgram a b = InfProg
   { runInfProg :: InfiniteStreamItem (InfiniteStreamT ((->) a)) [b]
-  }
-$(mkInNewtypeFuncs [0,2] ''InfiniteProgram)
+  } deriving Monoid
 $(mkWithNewtypeFuncs [2] ''InfiniteProgram)
 $(mkWithNewtypeFuncs [0..2] ''ZipList)
 $(mkApplicative [d| instance Applicable (InfiniteProgram a) |]
@@ -58,24 +58,8 @@ $(mkApplicative [d| instance Applicable (InfiniteProgram a) |]
 newtype FiniteProgram a b = FinProg
   { runFinProg :: InfiniteStreamItem (InfiniteStreamT (O Maybe ((->) a))) [b]
   }
+$(mkInNewtypeFuncs [2] ''FiniteProgram)
 $(mkWithNewtypeFuncs [1,2] ''FiniteProgram)
-
-instance Monoid a => Monoid (Identity a) where
-  mempty  = lift0 mempty
-  mappend = lift2 mappend
-instance (Applicative f, Monoid a) => Monoid (InfiniteStreamT f a) where
-  mempty  = lift0 mempty
-  mappend = lift2 mappend
-instance (Applicative f, Monoid a) => Monoid (InfiniteStreamItem f a) where
-  mempty  = lift0 mempty
-  mappend = lift2 mappend
--- Monoid instance of program:
--- * Can be derived with GeneralizedNewTypeDeriving
--- * Follows a different lifting path than its Applicative
---   (doesn't stem from being an applicative)
-instance Monoid (InfiniteProgram a b) where
-  mempty  = inInfiniteProgram0 mempty
-  mappend = inInfiniteProgram2 mappend
 
 instance Category InfiniteProgram where
   id =
@@ -132,6 +116,9 @@ doneProgram = FinProg . InfStrIt [] . InfStrT . O $ Nothing
 
 concatPrograms :: [FiniteProgram a b] -> FiniteProgram a b
 concatPrograms = foldr appendPrograms doneProgram
+
+mergeFinProgs :: FiniteProgram a b -> FiniteProgram a b -> FiniteProgram a b
+mergeFinProgs = inFiniteProgram2 mappend
 
 instance Monad (FiniteProgram a) where
   return = FinProg . (`InfStrIt` InfStrT (O Nothing)) . return
