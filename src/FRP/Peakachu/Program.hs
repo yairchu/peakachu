@@ -7,8 +7,8 @@ module FRP.Peakachu.Program
 
 import Control.FilterCategory (FilterCategory(..))
 import Control.Lift
+import Data.Cons
 import Data.InfiniteStream
-import Data.InfiniteStream.Item
 import Data.Newtype
 
 import Control.Applicative (Applicative(..), (<$>), ZipList(..))
@@ -17,37 +17,36 @@ import Control.Compose
 import Control.Monad (MonadPlus(..))
 import Data.ADT.Getters
 import Data.Bijection
-import Data.Function (fix)
-import Data.Maybe (fromJust, isJust, mapMaybe, catMaybes)
+import Data.Maybe (mapMaybe, catMaybes)
 import Data.Monoid (Monoid(..))
 
 import Prelude hiding ((.), id)
 
 newtype Program a b = Prog
-  { runProg :: InfiniteStreamItem (InfiniteStreamT (O Maybe ((->) a))) [b]
+  { runProg :: Cons (InfiniteStreamT (O Maybe ((->) a))) [b]
   }
 
 biProgram
   :: Bijection (->)
-     (InfiniteStreamItem (InfiniteStreamT (O Maybe ((->) a))) [b])
+     (Cons (InfiniteStreamT (O Maybe ((->) a))) [b])
      (Program a b)
 biProgram = Bi Prog runProg
 
-$(mkInNewtypeFuncs [2] ''Program)
+$(mkInNewtypeFuncs [1,2] ''Program)
 $(mkWithNewtypeFuncs [1,2] ''Program)
 
 instance Category Program where
   id =
-    Prog . InfStrIt [] $ f
+    Prog . Cons [] $ f
     where
-      f = InfStrT . O . Just $ (`InfStrIt` f) . return
+      f = InfStrT . O . Just $ (`Cons` f) . return
   left . right =
-    Prog . InfStrIt (catMaybes stuff >>= headIS) . InfStrT . O $ more
+    Prog . Cons (catMaybes stuff >>= headC) . InfStrT . O $ more
     where
-      InfStrIt rightStart rightMore = runProg right
+      Cons rightStart rightMore = runProg right
       stuff = scanl step (Just (runProg left)) rightStart
       step l valRight = do
-        InfStrIt _ moreLeft <- l
+        Cons _ moreLeft <- l
         moreFunc <- unO . runInfStrT $ moreLeft
         return $ moreFunc valRight
       more = do
@@ -55,21 +54,32 @@ instance Category Program where
         lastStuff <- last stuff
         return $
           withProgram2 (.)
-          (InfStrIt [] (tailIS lastStuff))
+          (Cons [] (tailC lastStuff))
           . moreFunc
 
+instance Functor (Program a) where
+  fmap = inProgram1 . fmap . fmap
+
+instance FilterCategory Program where
+  rid =
+    Prog . Cons [] $ f
+    where
+      f = InfStrT . O . Just $ g
+      g Nothing = Cons [] f
+      g (Just x) = Cons [x] f
+
 emptyProgram :: Program a b
-emptyProgram = Prog . InfStrIt [] . InfStrT . O $ Nothing
+emptyProgram = Prog . Cons [] . InfStrT . O $ Nothing
 
 newtype MergeProgram a b = MergeProg
   { runMergeProg :: Program a b
-  } deriving Category
+  } deriving (Category, FilterCategory)
 
 biMergeProgram :: Bijection (->) (Program a b) (MergeProgram a b)
 biMergeProgram = Bi MergeProg runMergeProg
 
 $(mkInNewtypeFuncs [2] ''MergeProgram)
-$(mkWithNewtypeFuncs [1] ''MergeProgram)
+$(mkWithNewtypeFuncs [2] ''MergeProgram)
 
 instance Monoid (MergeProgram a b) where
   mempty = MergeProg emptyProgram
@@ -88,7 +98,7 @@ $(mkApplicative <$> [d| instance Applicable (MergeProgram a) |])
 
 newtype AppendProgram a b = AppendProg
   { runAppendProg :: Program a b
-  } deriving Category
+  } deriving (Category, FilterCategory)
 
 $(mkWithNewtypeFuncs [1] ''AppendProgram)
 
@@ -97,24 +107,24 @@ instance Monoid (AppendProgram a b) where
   mappend left right =
     AppendProg . Prog
     $ case unO (runInfStrT leftMore) of
-      Nothing -> InfStrIt (leftStart ++ rightStart) rightMore
+      Nothing -> Cons (leftStart ++ rightStart) rightMore
       Just more ->
-        InfStrIt leftStart
+        Cons leftStart
         . InfStrT . O . Just
         $ (withProgram1 . withAppendProgram1) (`mappend` right) . more
     where
-      InfStrIt leftStart leftMore   = runProg . runAppendProg $ left
-      InfStrIt rightStart rightMore = runProg . runAppendProg $ right
+      Cons leftStart leftMore   = runProg . runAppendProg $ left
+      Cons rightStart rightMore = runProg . runAppendProg $ right
 
 instance Monad (AppendProgram a) where
-  return = AppendProg . Prog . (`InfStrIt` InfStrT (O Nothing)) . (:[])
+  return = AppendProg . Prog . (`Cons` InfStrT (O Nothing)) . (:[])
   left >>= right =
     mconcat
     . (map right leftStart ++)
     . (:[])
     . AppendProg
     . Prog
-    . InfStrIt []
+    . Cons []
     . InfStrT
     . O
     . fmap ((withProgram1 . withAppendProgram1) (>>= right) .)
@@ -122,7 +132,7 @@ instance Monad (AppendProgram a) where
     . runInfStrT
     $ leftMore
     where
-      InfStrIt leftStart leftMore = runProg . runAppendProg $ left
+      Cons leftStart leftMore = runProg . runAppendProg $ left
 
 instance MonadPlus (AppendProgram a) where
   mzero = mempty
@@ -132,7 +142,7 @@ $(monadToApplicative <$> [d| instance Applicable (AppendProgram a) |])
 
 scanlP :: (s -> i -> s) -> s -> Program i s
 scanlP step start =
-  Prog . InfStrIt [start]
+  Prog . Cons [start]
   . InfStrT . O . Just
   $ runProg . scanlP step . step start
 
@@ -140,27 +150,26 @@ $(mkADTGetterFuncs ''Either)
 
 $(mkInNewtypeFuncs [1] ''InfiniteStreamT)
 
-loopbackPh :: MergeProgram a (Either b a) -> MergeProgram a b
+loopbackPh :: Program a (Either b a) -> Program a b
 loopbackPh program =
-  MergeProg
-  . Prog
-  . InfStrIt (stuff >>= mapMaybe gLeft . headIS)
+  Prog
+  . Cons (stuff >>= mapMaybe gLeft . headC)
   . ( ( inInfiniteStreamT1 . inO
-      . fmap . fmap . withProgram1
-      . withMergeProgram1) loopbackPh
+      . fmap . fmap . withProgram1)
+      loopbackPh
     )
-  . tailIS . last $ stuff
+  . tailC . last $ stuff
   where
-    rp = runProg . runMergeProg
+    rp = runProg
     stuff =
       scanl step (rp program)
-      . mapMaybe gRight . headIS . rp $ program
+      . mapMaybe gRight . headC . rp $ program
     step prev val =
-      case (unO . runInfStrT . tailIS) prev of
+      case (unO . runInfStrT . tailC) prev of
         Nothing -> runProg emptyProgram
         Just more -> more val
 
-loopbackP :: MergeProgram b a -> MergeProgram a b -> MergeProgram a b
+loopbackP :: Program b a -> Program a b -> Program a b
 loopbackP loop =
-  loopbackPh . (.) (mappend (Left <$> id) (Right <$> loop))
+  loopbackPh . (.) (withMergeProgram2 mappend (Left <$> id) (Right <$> loop))
 

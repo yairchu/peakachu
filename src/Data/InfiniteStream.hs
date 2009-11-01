@@ -5,7 +5,7 @@ module Data.InfiniteStream
   ) where
 
 import Control.Lift
-import Data.InfiniteStream.Item
+import Data.Cons
 
 import Control.Applicative
 import Control.Category
@@ -15,12 +15,12 @@ import Data.Monoid
 import Prelude hiding ((.))
 
 newtype InfiniteStreamT f a = InfStrT
-  { runInfStrT :: f (InfiniteStreamItem (InfiniteStreamT f) a)
+  { runInfStrT :: f (Cons (InfiniteStreamT f) a)
   }
 
 biInfStrT
   :: Bijection (->)
-     (f (InfiniteStreamItem (InfiniteStreamT f) a))
+     (f (Cons (InfiniteStreamT f) a))
      (InfiniteStreamT f a)
 biInfStrT = Bi InfStrT runInfStrT
 

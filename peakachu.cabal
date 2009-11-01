@@ -33,8 +33,8 @@ Library
                        Control.Lift
                        Control.Lift.Overlap
                        Data.ADT.Getters
+                       Data.Cons
                        Data.Newtype
                        Data.InfiniteStream
-                       Data.InfiniteStream.Item
   ghc-options:         -O2 -Wall
 
