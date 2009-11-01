@@ -25,7 +25,7 @@ biInfStrT
 biInfStrT = Bi InfStrT runInfStrT
 
 instance Applicative f => MakeApplicative (InfiniteStreamT f) where
-  applifter = biLift (biInfStrT . inverse biO) ~. oLift appLift ~. oidLift ~. appLift
+  applifter = biLift (biInfStrT . inverse biO) ~. appLift
 $(mkApplicative <$> [d| instance Applicative f => Applicable (InfiniteStreamT f) |])
 
 instance (Applicative f, Monoid a) => Monoid (InfiniteStreamT f a) where

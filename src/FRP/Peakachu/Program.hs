@@ -1,13 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
 
 module FRP.Peakachu.Program
-  ( Program(..), scanlP, singleValueP, loopbackP
-  , mergeFinProgs
+  ( Program(..), MergeProgram(..), AppendProgram(..)
+  , scanlP, loopbackP
   ) where
 
 import Control.FilterCategory (FilterCategory(..))
 import Control.Lift
-import Control.Lift.Overlap ()
 import Data.InfiniteStream
 import Data.InfiniteStream.Item
 import Data.Newtype
@@ -15,7 +14,8 @@ import Data.Newtype
 import Control.Applicative (Applicative(..), (<$>), ZipList(..))
 import Control.Category (Category(..))
 import Control.Compose
-import Control.Monad (MonadPlus(..), liftM, ap)
+import Control.Monad (MonadPlus(..))
+import Data.ADT.Getters
 import Data.Bijection
 import Data.Function (fix)
 import Data.Maybe (fromJust, isJust, mapMaybe, catMaybes)
@@ -23,63 +23,29 @@ import Data.Monoid (Monoid(..))
 
 import Prelude hiding ((.), id)
 
-newtype InfiniteProgram a b = InfProg
-  { runInfProg :: InfiniteStreamItem (InfiniteStreamT ((->) a)) [b]
-  } deriving Monoid
-
-biInfProg
-  :: Bijection (->)
-     (InfiniteStreamItem (InfiniteStreamT ((->) a)) [b])
-     (InfiniteProgram a b)
-biInfProg = Bi InfProg runInfProg
-
-$(mkWithNewtypeFuncs [2] ''InfiniteProgram)
-
-biZipList :: Bijection (->) [a] (ZipList a)
-biZipList = Bi ZipList getZipList
-
-instance MakeApplicative (InfiniteProgram a) where
-  applifter =
-    biLift (biInfProg . inverse biO)
-    ~. oLift appLift ~. oidLift
-    ~. biLift (inverse biZipList) ~. appLift
-
--- $(mkApplicative <$> [d| instance Applicable (InfiniteProgram a) |])
-
--- $(mkApplicative [d| instance Applicable (InfiniteProgram a) |]
---   [["lift", "withZipList", "lift"]])
-
-newtype FiniteProgram a b = FinProg
-  { runFinProg :: InfiniteStreamItem (InfiniteStreamT (O Maybe ((->) a))) [b]
+newtype Program a b = Prog
+  { runProg :: InfiniteStreamItem (InfiniteStreamT (O Maybe ((->) a))) [b]
   }
-$(mkInNewtypeFuncs [2] ''FiniteProgram)
-$(mkWithNewtypeFuncs [1,2] ''FiniteProgram)
 
-instance Category InfiniteProgram where
-  id =
-    InfProg . InfStrIt [] $ f
-    where
-      f = InfStrT $ (`InfStrIt` f) . return
-  left . right =
-    InfProg . InfStrIt (stuff >>= headIS) . InfStrT $ more
-    where
-      InfStrIt rightStart rightMore = runInfProg right
-      stuff = scanl (runInfStrT . tailIS) (runInfProg left) rightStart
-      more =
-        withInfiniteProgram2 (.)
-        (InfStrIt [] (tailIS (last stuff)))
-        . runInfStrT rightMore
+biProgram
+  :: Bijection (->)
+     (InfiniteStreamItem (InfiniteStreamT (O Maybe ((->) a))) [b])
+     (Program a b)
+biProgram = Bi Prog runProg
 
-instance Category FiniteProgram where
+$(mkInNewtypeFuncs [2] ''Program)
+$(mkWithNewtypeFuncs [1,2] ''Program)
+
+instance Category Program where
   id =
-    FinProg . InfStrIt [] $ f
+    Prog . InfStrIt [] $ f
     where
       f = InfStrT . O . Just $ (`InfStrIt` f) . return
   left . right =
-    FinProg . InfStrIt (catMaybes stuff >>= headIS) . InfStrT . O $ more
+    Prog . InfStrIt (catMaybes stuff >>= headIS) . InfStrT . O $ more
     where
-      InfStrIt rightStart rightMore = runFinProg right
-      stuff = scanl step (Just (runFinProg left)) rightStart
+      InfStrIt rightStart rightMore = runProg right
+      stuff = scanl step (Just (runProg left)) rightStart
       step l valRight = do
         InfStrIt _ moreLeft <- l
         moreFunc <- unO . runInfStrT $ moreLeft
@@ -88,138 +54,113 @@ instance Category FiniteProgram where
         moreFunc <- unO . runInfStrT $ rightMore
         lastStuff <- last stuff
         return $
-          withFiniteProgram2 (.)
+          withProgram2 (.)
           (InfStrIt [] (tailIS lastStuff))
           . moreFunc
 
-appendPrograms :: FiniteProgram a b -> FiniteProgram a b -> FiniteProgram a b
-appendPrograms left right =
-  FinProg $ case unO (runInfStrT leftMore) of
-    Nothing -> InfStrIt (leftStart ++ rightStart) rightMore
-    Just more ->
-      InfStrIt leftStart
-      . InfStrT . O . Just
-      $ withFiniteProgram1 (`appendPrograms` right) . more
-  where
-    InfStrIt leftStart leftMore = runFinProg left
-    InfStrIt rightStart rightMore = runFinProg right
+emptyProgram :: Program a b
+emptyProgram = Prog . InfStrIt [] . InfStrT . O $ Nothing
 
-doneProgram :: FiniteProgram a b
-doneProgram = FinProg . InfStrIt [] . InfStrT . O $ Nothing
+newtype MergeProgram a b = MergeProg
+  { runMergeProg :: Program a b
+  } deriving Category
 
-concatPrograms :: [FiniteProgram a b] -> FiniteProgram a b
-concatPrograms = foldr appendPrograms doneProgram
+biMergeProgram :: Bijection (->) (Program a b) (MergeProgram a b)
+biMergeProgram = Bi MergeProg runMergeProg
 
-mergeFinProgs :: FiniteProgram a b -> FiniteProgram a b -> FiniteProgram a b
-mergeFinProgs = inFiniteProgram2 mappend
+$(mkInNewtypeFuncs [2] ''MergeProgram)
+$(mkWithNewtypeFuncs [1] ''MergeProgram)
 
-instance Monad (FiniteProgram a) where
-  return = FinProg . (`InfStrIt` InfStrT (O Nothing)) . return
+instance Monoid (MergeProgram a b) where
+  mempty = MergeProg emptyProgram
+  mappend = inMergeProgram2 . inProgram2 $ mappend
+
+biZipList :: Bijection (->) [a] (ZipList a)
+biZipList = Bi ZipList getZipList
+
+instance MakeApplicative (MergeProgram a) where
+  applifter =
+    biLift (biMergeProgram . biProgram . inverse biO)
+    ~. lifto appLift
+    ~. biLift (inverse biZipList)
+    ~. appLift
+$(mkApplicative <$> [d| instance Applicable (MergeProgram a) |])
+
+newtype AppendProgram a b = AppendProg
+  { runAppendProg :: Program a b
+  } deriving Category
+
+$(mkWithNewtypeFuncs [1] ''AppendProgram)
+
+instance Monoid (AppendProgram a b) where
+  mempty = AppendProg emptyProgram
+  mappend left right =
+    AppendProg . Prog
+    $ case unO (runInfStrT leftMore) of
+      Nothing -> InfStrIt (leftStart ++ rightStart) rightMore
+      Just more ->
+        InfStrIt leftStart
+        . InfStrT . O . Just
+        $ (withProgram1 . withAppendProgram1) (`mappend` right) . more
+    where
+      InfStrIt leftStart leftMore   = runProg . runAppendProg $ left
+      InfStrIt rightStart rightMore = runProg . runAppendProg $ right
+
+instance Monad (AppendProgram a) where
+  return = AppendProg . Prog . (`InfStrIt` InfStrT (O Nothing)) . (:[])
   left >>= right =
-    concatPrograms
+    mconcat
     . (map right leftStart ++)
-    . return
-    . FinProg
+    . (:[])
+    . AppendProg
+    . Prog
     . InfStrIt []
     . InfStrT
     . O
-    . fmap (withFiniteProgram1 (>>= right) .)
+    . fmap ((withProgram1 . withAppendProgram1) (>>= right) .)
     . unO
     . runInfStrT
     $ leftMore
     where
-      InfStrIt leftStart leftMore = runFinProg left
+      InfStrIt leftStart leftMore = runProg . runAppendProg $ left
 
-instance Functor (FiniteProgram a) where
-  fmap  = liftM
-instance Applicative (FiniteProgram a) where
-  pure  = return
-  (<*>) = ap
+instance MonadPlus (AppendProgram a) where
+  mzero = mempty
+  mplus = mappend
 
-instance MonadPlus (FiniteProgram a) where
-  mzero = doneProgram
-  mplus = appendPrograms
-
-data Program input output = Program
-  { progVals :: [output]
-  , progMore :: input -> Program input output
-  }
-
-instance Category Program where
-  id =
-    f []
-    where
-      f = (`Program` g)
-      g = f . return
-  a . Program valsB restB =
-    Program
-    { progVals = stuff >>= progVals
-    , progMore = more
-    }
-    where
-      stuff = scanl progMore a valsB
-      more x = Program [] (progMore (last stuff)) . restB x
-
-instance FilterCategory Program where
-  rid =
-    fromJust <$> t []
-    where
-      t = (`Program` t . filter isJust . return)
-
-instance Functor (Program input) where
-  fmap f (Program vals rest) =
-    Program (fmap f vals) ((fmap . fmap) f rest)
-
-instance Applicative (Program input) where
-  pure x =
-    Program (repeat x) ((pure . pure) x)
-  Program valsA restA <*> Program valsB restB =
-    Program
-    { progVals = zipWith ($) valsA valsB
-    , progMore = more <$> restA <*> restB
-    }
-    where
-      more a b =
-        case (a, b) of
-          (Program [] _, Program [] _) -> Program [] rMore
-          _ -> r
-        where
-          r@(Program _ rMore) = p valsA a <*> p valsB b
-      p [] (Program [] m) = Program [] m
-      p (x:_) (Program [] m) = Program [x] m
-      p _ s = s
-
-instance Monoid (Program input output) where
-  mempty = Program [] mempty
-  mappend (Program vA rA) (Program vB rB) =
-    Program (mappend vA vB) (mappend rA rB)
+$(monadToApplicative <$> [d| instance Applicable (AppendProgram a) |])
 
 scanlP :: (s -> i -> s) -> s -> Program i s
-scanlP step =
-  fix $ \self ->
-  Program <$> return <*> fmap self . step
+scanlP step start =
+  Prog . InfStrIt [start]
+  . InfStrT . O . Just
+  $ runProg . scanlP step . step start
 
-singleValueP :: b -> Program a b
-singleValueP x = Program [x] mempty
+$(mkADTGetterFuncs ''Either)
 
-loopbackPh :: Program a (Either b a) -> Program a b
+$(mkInNewtypeFuncs [1] ''InfiniteStreamT)
+
+loopbackPh :: MergeProgram a (Either b a) -> MergeProgram a b
 loopbackPh program =
-  Program
-  { progVals = stuff >>= mapMaybe gLeft . progVals
-  , progMore = fmap loopbackPh . progMore . last $ stuff
-  }
+  MergeProg
+  . Prog
+  . InfStrIt (stuff >>= mapMaybe gLeft . headIS)
+  . ( ( inInfiniteStreamT1 . inO
+      . fmap . fmap . withProgram1
+      . withMergeProgram1) loopbackPh
+    )
+  . tailIS . last $ stuff
   where
-    gLeft (Left x) = Just x
-    gLeft _ = Nothing
-    gRight (Right x) = Just x
-    gRight _ = Nothing
+    rp = runProg . runMergeProg
     stuff =
-      scanl progMore program
-      . mapMaybe gRight
-      . progVals $ program
+      scanl step (rp program)
+      . mapMaybe gRight . headIS . rp $ program
+    step prev val =
+      case (unO . runInfStrT . tailIS) prev of
+        Nothing -> runProg emptyProgram
+        Just more -> more val
 
-loopbackP :: Program b a -> Program a b -> Program a b
+loopbackP :: MergeProgram b a -> MergeProgram a b -> MergeProgram a b
 loopbackP loop =
-  loopbackPh .
-  (.) (mappend (Left <$> id) (Right <$> loop))
+  loopbackPh . (.) (mappend (Left <$> id) (Right <$> loop))
 

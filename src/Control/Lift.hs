@@ -2,14 +2,15 @@
 
 module Control.Lift 
   ( Lift(..), MakeApplicative(..)
-  , Applicable(..), mkApp, mkApplicative
+  , Applicable(..), mkApp, mkApplicative, monadToApplicative
   , uplift0, uplift1, uplift2
-  , (~.), oLift, oidLift
-  , appLift, biLift
+  , (~.), lifto
+  , appLift, biLift, monadLift
   ) where
 
 import Control.Applicative (Applicative(..), liftA2)
 import Control.Compose ((:.)(..), Id(..), inId, inId2, inO, inO2)
+import Control.Monad (liftM, liftM2)
 import Data.Bijection (Bijection(..))
 import Language.Haskell.TH.Syntax hiding (Lift(..))
 
@@ -41,27 +42,38 @@ mkApplicative decs =
   where
     [InstanceD cxt (AppT _ insType) _] = decs
 
+instanceDef :: Cxt -> String -> Type -> [Dec] -> Dec
+instanceDef context cls =
+  InstanceD context . AppT (ConT (mkName cls))
+
+clause :: Exp -> Clause
+clause x = Clause [] (NormalB x) []
+
 mkApp :: Cxt -> Type -> [Dec]
 mkApp context insType =
-  [ instanceDef "Functor"
+  [ instanceDef context "Functor" insType
     [ FunD (mkName "fmap") [clause (lift 1)]
     ]
-  , instanceDef "Applicative"
+  , instanceDef context "Applicative" insType
     [ FunD (mkName "pure") [clause (lift 0)]
     , FunD (mkName "<*>") [clause (AppE (lift 2) (varE "$"))]
     ]
   ]
   where
-    instanceDef typeclass =
-      InstanceD context
-      . AppT (ConT (mkName typeclass))
-      $ insType
-    clause x = Clause [] (NormalB x) []
     varE = VarE . mkName
     lift :: Int -> Exp
     lift i =
       AppE (varE ("uplift" ++ show i))
       . varE $ "applifter"
+
+monadToApplicative :: [Dec] -> [Dec]
+monadToApplicative decs =
+  [ instanceDef context "MakeApplicative" insType
+    [ FunD (mkName "applifter") [(clause . VarE . mkName) "monadLift"]
+    ]
+  ] ++ mkApp context insType
+  where
+    [InstanceD context (AppT _ insType) _] = decs
 
 infixr 9 ~.
 
@@ -76,42 +88,34 @@ left ~. right =
   , lift2 = lift2 left . lift2 right
   }
 
-withO :: ((f0 :. g0) a0 -> (f1 :. g1) a1) -> f0 (g0 a0) -> f1 (g1 a1)
-withO = (unO .) . (. O)
-
-withO2
-  :: ((f0 :. g0) a0 -> (f1 :. g1) a1 -> (f2 :. g2) a2)
-  -> f0 (g0 a0) -> f1 (g1 a1) -> f2 (g2 a2)
-withO2 f a b = unO $ f (O a) (O b)
-
-oLift :: Lift a b -> Lift (a :. c) (b :. c)
-oLift orig =
-  Lift
-  { lift0 = O    . lift0 orig . unO
-  , lift1 = inO  . lift1 orig . withO
-  , lift2 = inO2 . lift2 orig . withO2
-  }
-
 withId :: (Id a -> Id b) -> a -> b
 withId = (unId .) . (. Id)
 
 withId2 :: (Id a -> Id b -> Id c) -> a -> b -> c
 withId2 f a b = unId $ f (Id a) (Id b)
 
+monadLift :: Monad m => Lift Id m
+monadLift =
+  Lift
+  { lift0 = return . unId
+  , lift1 = liftM  . withId
+  , lift2 = liftM2 . withId2
+  }
+
 appLift :: Applicative f => Lift Id f
 appLift =
   Lift
-  { lift0 = pure . unId
-  , lift1 = fmap . withId
+  { lift0 = pure   . unId
+  , lift1 = fmap   . withId
   , lift2 = liftA2 . withId2
   }
 
-oidLift :: Lift f (Id :. f)
-oidLift =
+lifto :: Lift Id f -> Lift g (f :. g)
+lifto orig =
   Lift
-  { lift0 = O    . Id
-  , lift1 = inO  . inId
-  , lift2 = inO2 . inId2
+  { lift0 = O    . lift0 orig . Id
+  , lift1 = inO  . lift1 orig . inId
+  , lift2 = inO2 . lift2 orig . inId2
   }
 
 biLift :: (forall a. Bijection (->) (f a) (g a)) -> Lift f g
