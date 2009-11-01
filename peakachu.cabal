@@ -31,7 +31,10 @@ Library
                        Control.Concurrent.MVar.YC
                        Control.FilterCategory
                        Control.Lift
+                       Control.Lift.Overlap
                        Data.ADT.Getters
                        Data.Newtype
+                       Data.InfiniteStream
+                       Data.InfiniteStream.Item
   ghc-options:         -O2 -Wall
 

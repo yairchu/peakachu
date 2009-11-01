@@ -6,47 +6,48 @@ module FRP.Peakachu.Program
   ) where
 
 import Control.FilterCategory (FilterCategory(..))
+import Control.Lift
+import Control.Lift.Overlap ()
+import Data.InfiniteStream
+import Data.InfiniteStream.Item
+import Data.Newtype
 
-import Control.Applicative (Applicative(..), (<$>), ZipList(..), liftA2)
-import Control.Applicative.Define
+import Control.Applicative (Applicative(..), (<$>), ZipList(..))
 import Control.Category (Category(..))
 import Control.Compose
 import Control.Monad (MonadPlus(..), liftM, ap)
+import Data.Bijection
 import Data.Function (fix)
 import Data.Maybe (fromJust, isJust, mapMaybe, catMaybes)
 import Data.Monoid (Monoid(..))
-import Data.Newtype
 
 import Prelude hiding ((.), id)
-
-data InfiniteStreamItem m a = InfStrIt
-  { headIS :: a
-  , tailIS :: m a
-  }
-$(mkWithNewtypeFuncs [0..2] ''Id)
-$(mkApplicative
-  [d| instance Applicable f => Applicable (InfiniteStreamItem f) |]
-  [["withId", "lift"], ["lift"]])
-instance (Applicative f, Monoid a) => Monoid (InfiniteStreamItem f a) where
-  mempty  = pure mempty
-  mappend = liftA2 mappend
-
-newtype InfiniteStreamT f a = InfStrT
-  { runInfStrT :: f (InfiniteStreamItem (InfiniteStreamT f) a)
-  }
-$(mkApplicative [d| instance Applicable f => Applicable (InfiniteStreamT f) |]
-  [["lift", "lift"]])
-instance (Applicative f, Monoid a) => Monoid (InfiniteStreamT f a) where
-  mempty  = pure mempty
-  mappend = liftA2 mappend
 
 newtype InfiniteProgram a b = InfProg
   { runInfProg :: InfiniteStreamItem (InfiniteStreamT ((->) a)) [b]
   } deriving Monoid
+
+biInfProg
+  :: Bijection (->)
+     (InfiniteStreamItem (InfiniteStreamT ((->) a)) [b])
+     (InfiniteProgram a b)
+biInfProg = Bi InfProg runInfProg
+
 $(mkWithNewtypeFuncs [2] ''InfiniteProgram)
-$(mkWithNewtypeFuncs [0..2] ''ZipList)
-$(mkApplicative [d| instance Applicable (InfiniteProgram a) |]
-  [["lift", "withZipList", "lift"]])
+
+biZipList :: Bijection (->) [a] (ZipList a)
+biZipList = Bi ZipList getZipList
+
+instance MakeApplicative (InfiniteProgram a) where
+  applifter =
+    biLift (biInfProg . inverse biO)
+    ~. oLift appLift ~. oidLift
+    ~. biLift (inverse biZipList) ~. appLift
+
+-- $(mkApplicative <$> [d| instance Applicable (InfiniteProgram a) |])
+
+-- $(mkApplicative [d| instance Applicable (InfiniteProgram a) |]
+--   [["lift", "withZipList", "lift"]])
 
 newtype FiniteProgram a b = FinProg
   { runFinProg :: InfiniteStreamItem (InfiniteStreamT (O Maybe ((->) a))) [b]
