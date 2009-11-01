@@ -74,7 +74,7 @@ mkApp andPointed info instanceType context paths =
       where
         modPathItem "lift" = appLift
         modPathItem x = x ++ show numArgs
-    compose l r = InfixE (Just l) (VarE (mkName ("."))) (Just r)
+    compose l = InfixE (Just l) (VarE (mkName ".")) . Just
     TyConI typedef = info
     (typeContext, constructor) =
       case typedef of

@@ -19,21 +19,14 @@ import Data.Newtype
 
 import Prelude hiding ((.), id)
 
--- mtl's Identity is not an Applicative
-newtype Identity a = Identity a
-$(mkWithNewtypeFuncs [0..2] ''Identity)
-$(mkApplicative [d| instance Applicable Identity |] [[]])
-instance Monoid a => Monoid (Identity a) where
-  mempty  = pure mempty
-  mappend = liftA2 mappend
-
 data InfiniteStreamItem m a = InfStrIt
   { headIS :: a
   , tailIS :: m a
   }
+$(mkWithNewtypeFuncs [0..2] ''Id)
 $(mkApplicative
   [d| instance Applicable f => Applicable (InfiniteStreamItem f) |]
-  [["withIdentity", "lift"], ["lift"]])
+  [["withId", "lift"], ["lift"]])
 instance (Applicative f, Monoid a) => Monoid (InfiniteStreamItem f a) where
   mempty  = pure mempty
   mappend = liftA2 mappend
@@ -70,8 +63,7 @@ instance Category InfiniteProgram where
     InfProg . InfStrIt (stuff >>= headIS) . InfStrT $ more
     where
       InfStrIt rightStart rightMore = runInfProg right
-      stuff = scanl step (runInfProg left) rightStart
-      step (InfStrIt _ moreLeft) valRight = runInfStrT moreLeft valRight
+      stuff = scanl (runInfStrT . tailIS) (runInfProg left) rightStart
       more =
         withInfiniteProgram2 (.)
         (InfStrIt [] (tailIS (last stuff)))
@@ -130,13 +122,12 @@ instance Monad (FiniteProgram a) where
     . InfStrIt []
     . InfStrT
     . O
-    . fmap f
+    . fmap (withFiniteProgram1 (>>= right) .)
     . unO
     . runInfStrT
     $ leftMore
     where
       InfStrIt leftStart leftMore = runFinProg left
-      f more = withFiniteProgram1 (>>= right) . more
 
 instance Functor (FiniteProgram a) where
   fmap  = liftM
@@ -165,8 +156,7 @@ instance Category Program where
     , progMore = more
     }
     where
-      stuff = scanl step a valsB
-      step (Program _ restA) xB = restA xB
+      stuff = scanl progMore a valsB
       more x = Program [] (progMore (last stuff)) . restB x
 
 instance FilterCategory Program where
@@ -223,10 +213,9 @@ loopbackPh program =
     gRight (Right x) = Just x
     gRight _ = Nothing
     stuff =
-      scanl step program
+      scanl progMore program
       . mapMaybe gRight
       . progVals $ program
-    step (Program _ rest) x = rest x
 
 loopbackP :: Program b a -> Program a b -> Program a b
 loopbackP loop =
