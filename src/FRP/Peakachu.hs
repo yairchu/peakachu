@@ -5,12 +5,9 @@ module FRP.Peakachu
 import FRP.Peakachu.Backend (Backend(..), Sink(..))
 import FRP.Peakachu.Program (Program(..))
 import Control.Concurrent.MVar.YC (writeMVar)
-import Data.Cons
-import Data.InfiniteStream
 
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newMVar, putMVar, readMVar, takeMVar)
-import Control.Compose
 import Control.Monad (when)
 import Data.Function (fix)
 
@@ -26,7 +23,7 @@ runProgram backend program = do
     consumeOutput =
       doWhile $ do
         Just sink <- readMVar sinkVar
-        prog@(Prog (Cons vals more)) <- takeMVar progVar
+        prog@(Program vals more) <- takeMVar progVar
         case vals of
           [] -> do
             putMVar progVar prog
@@ -35,15 +32,14 @@ runProgram backend program = do
             --  writeMVar resumeVar False
             return False
           (x : xs) -> do
-            putMVar progVar . Prog $ Cons xs more
+            putMVar progVar $ Program xs more
             sinkConsume sink x
             return True
     handleInput val = do
-      Prog (Cons vals more) <- takeMVar progVar
+      Program vals (Just more) <- takeMVar progVar
       let
-        Just jMore = unO . runInfStrT $ more
-        Cons mVals mMore = jMore val
-      putMVar progVar . Prog $ Cons (vals ++ mVals) mMore
+        Program mVals mMore = more val
+      putMVar progVar $ Program (vals ++ mVals) mMore
       consumeOutput
   sink <- runBackend backend handleInput
   writeMVar sinkVar (Just sink)
