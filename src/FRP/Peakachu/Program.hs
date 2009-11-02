@@ -6,7 +6,7 @@ module FRP.Peakachu.Program
   , inMergeProgram1
   ) where
 
-import Control.FilterCategory (FilterCategory(..), arr)
+import Control.FilterCategory (FilterCategory(..), rid)
 import Data.Newtype
 
 import Control.Applicative (Applicative(..), (<$>), liftA2)
@@ -51,11 +51,11 @@ instance Functor (Program a) where
     }
 
 instance FilterCategory Program where
-  rid =
-    f Nothing
+  flattenC =
+    f []
     where
-      f Nothing = Program [] (Just f)
-      f (Just x) = Program [x] (Just f)
+      f = (`Program` Just f)
+  arrC = (<$> id)
 
 emptyProgram :: Program a b
 emptyProgram = Program [] Nothing
@@ -160,7 +160,7 @@ loopbackP loop =
 
 lstPs :: (Maybe b) -> (a -> Maybe b) -> MergeProgram a b
 lstPs start f =
-  rid . MergeProg (scanlP (flip orElse) start) . arr f
+  rid . MergeProg (scanlP (flip orElse) start) . arrC f
 
 lstP :: (a -> Maybe b) -> MergeProgram a b
 lstP = lstPs Nothing

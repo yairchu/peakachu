@@ -4,7 +4,7 @@ module FRP.Peakachu.Backend
 
 import Control.FilterCategory (FilterCategory(..))
 
-import Control.Applicative ()
+import Control.Applicative ((<$>))
 import Control.Category
 import Control.Concurrent (forkIO)
 import Control.Monad (liftM2)
@@ -83,5 +83,8 @@ instance Category Backend where
           }
 
 instance FilterCategory Backend where
-  rid = Backend $ runBackend id . maybe (return ())
+  flattenC =
+    Backend $ \handler ->
+      runBackend id (mapM_ handler)
+  arrC = (<$> id)
 
