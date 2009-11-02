@@ -11,7 +11,7 @@ import Data.Newtype
 import Control.Applicative (Applicative(..), (<$>), liftA2)
 import Control.Category (Category(..))
 import Control.Monad (MonadPlus(..), ap)
-import Data.ADT.Getters
+import Data.ADT.Getters (mkADTGetters)
 import Data.Maybe (mapMaybe, catMaybes)
 import Data.Monoid (Monoid(..))
 
@@ -70,8 +70,10 @@ instance Monoid (MergeProgram a b) where
     MergeProg $ Program
     { progVals = progVals left ++ progVals right
     , progMore =
-      (liftA2 . liftA2 . withMergeProgram2)
-      mappend (progMore left) (progMore right)
+      (fmap . fmap) runMergeProg $
+      mappend
+      ((fmap . fmap) MergeProg (progMore left))
+      ((fmap . fmap) MergeProg (progMore right))
     }
 
 instance Applicative (MergeProgram a) where
@@ -133,7 +135,7 @@ scanlP :: (s -> i -> s) -> s -> Program i s
 scanlP step start =
   Program [start] $ Just (scanlP step . step start)
 
-$(mkADTGetterFuncs ''Either)
+$(mkADTGetters ''Either)
 
 loopbackPh :: Program a (Either b a) -> Program a b
 loopbackPh program =

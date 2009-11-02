@@ -2,12 +2,11 @@
 
 module FRP.Peakachu.Backend.GLUT
   ( GlutToProgram(..), Image(..), ProgramToGlut(..), glut
-  , cIdleEvent, cTimerEvent, cMouseMotionEvent
-  , cKeyboardMouseEvent
+  , gIdleEvent, gTimerEvent, gMouseMotionEvent
+  , gKeyboardMouseEvent
   ) where
 
-import Control.FilterCategory (FilterCategory(..), mapMaybeC)
-import Data.ADT.Getters (mkADTGetterCats)
+import Data.ADT.Getters (mkADTGetters)
 import FRP.Peakachu.Backend (Backend(..), Sink(..))
 
 import Data.Monoid (Monoid(..))
@@ -34,7 +33,7 @@ data GlutToProgram a
   | TimerEvent a
   | MouseMotionEvent GLfloat GLfloat
   | KeyboardMouseEvent Key KeyState Modifiers Position
-$(mkADTGetterCats ''GlutToProgram)
+$(mkADTGetters ''GlutToProgram)
 
 data ProgramToGlut a
   = DrawImage Image

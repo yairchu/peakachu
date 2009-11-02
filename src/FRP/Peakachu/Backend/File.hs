@@ -2,11 +2,10 @@
 
 module FRP.Peakachu.Backend.File
   ( FileToProgram(..), ProgramToFile(..), fileB
-  , cFileData, cFileError
+  , gFileData, gFileError
   ) where
 
-import Control.FilterCategory (FilterCategory(..), mapMaybeC)
-import Data.ADT.Getters (mkADTGetterCats)
+import Data.ADT.Getters (mkADTGetters)
 import FRP.Peakachu.Backend (Backend(..), Sink(..))
 
 import Control.Monad (join)
@@ -18,7 +17,7 @@ import System.IO.Error (try, isEOFError)
 data FileToProgram a
   = FileData String a
   | FileError a
-$(mkADTGetterCats ''FileToProgram)
+$(mkADTGetters ''FileToProgram)
 
 data ProgramToFile a
   = ReadFile FilePath a
