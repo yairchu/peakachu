@@ -2,16 +2,18 @@
 
 module FRP.Peakachu.Program
   ( Program(..), MergeProgram(..), AppendProgram(..)
-  , scanlP, loopbackP
+  , scanlP, loopbackP, lstP, lstPs
+  , inMergeProgram1
   ) where
 
-import Control.FilterCategory (FilterCategory(..))
+import Control.FilterCategory (FilterCategory(..), arr)
 import Data.Newtype
 
 import Control.Applicative (Applicative(..), (<$>), liftA2)
 import Control.Category (Category(..))
 import Control.Monad (MonadPlus(..), ap)
 import Data.ADT.Getters (mkADTGetters)
+import Data.Generics.Aliases (orElse)
 import Data.Maybe (mapMaybe, catMaybes)
 import Data.Monoid (Monoid(..))
 
@@ -62,6 +64,7 @@ newtype MergeProgram a b = MergeProg
   { runMergeProg :: Program a b
   } deriving (Category, FilterCategory, Functor)
 
+$(mkInNewtypeFuncs [1] ''MergeProgram)
 $(mkWithNewtypeFuncs [2] ''MergeProgram)
 
 instance Monoid (MergeProgram a b) where
@@ -154,4 +157,11 @@ loopbackP :: Program b a -> Program a b -> Program a b
 loopbackP loop =
   loopbackPh . (.)
   (withMergeProgram2 mappend (Left <$> id) (Right <$> loop))
+
+lstPs :: (Maybe b) -> (a -> Maybe b) -> MergeProgram a b
+lstPs start f =
+  rid . MergeProg (scanlP (flip orElse) start) . arr f
+
+lstP :: (a -> Maybe b) -> MergeProgram a b
+lstP = lstPs Nothing
 
