@@ -70,7 +70,7 @@ $(mkWithNewtypeFuncs [2] ''MergeProgram)
 instance Monoid (MergeProgram a b) where
   mempty = MergeProg emptyProgram
   mappend (MergeProg left) (MergeProg right) =
-    MergeProg $ Program
+    MergeProg Program
     { progVals = progVals left ++ progVals right
     , progMore =
       (fmap . fmap) runMergeProg $
@@ -81,12 +81,12 @@ instance Monoid (MergeProgram a b) where
 
 instance Applicative (MergeProgram a) where
   pure x =
-    MergeProg $ Program
+    MergeProg Program
     { progVals = pure x
     , progMore = pure . pure . runMergeProg . pure $ x
     }
   MergeProg left <*> MergeProg right =
-    MergeProg $ Program
+    MergeProg Program
     { progVals = progVals left <*> progVals right
     , progMore =
       (liftA2 . liftA2 . withMergeProgram2)
@@ -119,7 +119,7 @@ instance Monad (AppendProgram a) where
     mconcat $ map right (progVals left) ++ [rest]
     where
       rest =
-        AppendProg $ Program
+        AppendProg Program
         { progVals = []
         , progMore =
           (fmap . fmap . withAppendProgram1) (>>= right)

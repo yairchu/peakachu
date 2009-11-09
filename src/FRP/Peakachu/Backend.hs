@@ -83,8 +83,6 @@ instance Category Backend where
           }
 
 instance FilterCategory Backend where
-  flattenC =
-    Backend $ \handler ->
-      runBackend id (mapM_ handler)
+  flattenC = Backend (runBackend id . mapM_)
   arrC = (<$> id)
 
