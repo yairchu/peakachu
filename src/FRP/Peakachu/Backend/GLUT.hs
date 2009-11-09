@@ -6,12 +6,11 @@ module FRP.Peakachu.Backend.GLUT
   , gKeyboardMouseEvent
   ) where
 
-import Control.Concurrent.MVar.YC
+import Control.Concurrent.MVar.YC (modifyMVarPure)
 import Data.ADT.Getters (mkADTGetters)
 import FRP.Peakachu.Backend (Backend(..), Sink(..))
 
-import Control.Concurrent.MVar
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
 import Data.Monoid (Monoid(..))
 import Graphics.UI.GLUT (
   GLfloat, ($=), ($~), get,
@@ -22,7 +21,7 @@ import Graphics.UI.GLUT (
   displayCallback, idleCallback,
   keyboardMouseCallback,
   motionCallback, passiveMotionCallback,
-  windowSize, {- addTimerCallback, -}
+  windowSize, addTimerCallback,
   clear, flush, mainLoop)
 
 data Image = Image { runImage :: IO ()}
@@ -64,15 +63,12 @@ glut =
           runImage image
           swapBuffers
           flush
-        -- Ideally would be using addTimerCallback,
-        -- but that doesn't seem to work properly.
-        -- (sometimes the timer pops straight away)
-        consume (SetTimer timeout tag) = do
-          forkIO $ do
-            threadDelay $ timeout*1000
-            handler . TimerEvent $ tag
-          return ()
-          -- addTimerCallback timeout . handler count . TimerEvent $ tag
+        consume (SetTimer timeout tag) =
+          -- there seems to be a bug with addTimerCallback.
+          -- sometimes it calls you back straight away..
+          -- but doing a work around with an io-thread seems
+          -- to be very slow
+          addTimerCallback timeout . handler . TimerEvent $ tag
         preHandler event = do
           todo <- takeMVar todoVar
           putMVar todoVar []
