@@ -9,6 +9,7 @@ module FRP.Peakachu.Backend.GLUT
 import Data.ADT.Getters (mkADTGetters)
 import FRP.Peakachu.Backend (Backend(..), Sink(..))
 
+import Control.Concurrent (forkIO, threadDelay)
 import Data.Monoid (Monoid(..))
 import Graphics.UI.GLUT (
   GLfloat, ($=), ($~), get,
@@ -19,7 +20,7 @@ import Graphics.UI.GLUT (
   displayCallback, idleCallback,
   keyboardMouseCallback,
   motionCallback, passiveMotionCallback,
-  windowSize, addTimerCallback,
+  windowSize, {- addTimerCallback, -}
   clear, flush, mainLoop)
 
 data Image = Image { runImage :: IO ()}
@@ -61,8 +62,15 @@ glut =
           runImage image
           swapBuffers
           flush
-        consume (SetTimer timeout tag) =
-          addTimerCallback timeout . handler . TimerEvent $ tag
+        -- Ideally would be using addTimerCallback,
+        -- but that doesn't seem to work properly.
+        -- (sometimes the timer pops straight away)
+        consume (SetTimer timeout tag) = do
+          forkIO $ do
+            threadDelay $ timeout*1000
+            handler . TimerEvent $ tag
+          return ()
+          -- addTimerCallback timeout . handler count . TimerEvent $ tag
         setCallbacks = do
           idleCallback $= Just (handler IdleEvent)
           keyboardMouseCallback $=
