@@ -82,12 +82,12 @@ instance Monoid (MergeProgram a b) where
 instance Applicative (MergeProgram a) where
   pure x =
     MergeProg $ Program
-    { progVals = repeat x
+    { progVals = pure x
     , progMore = pure . pure . runMergeProg . pure $ x
     }
   MergeProg left <*> MergeProg right =
     MergeProg $ Program
-    { progVals = zipWith ($) (progVals left) (progVals right)
+    { progVals = progVals left <*> progVals right
     , progMore =
       (liftA2 . liftA2 . withMergeProgram2)
       (<*>) (progMore left) (progMore right)
