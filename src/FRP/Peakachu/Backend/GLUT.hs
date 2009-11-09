@@ -6,9 +6,11 @@ module FRP.Peakachu.Backend.GLUT
   , gKeyboardMouseEvent
   ) where
 
+import Control.Concurrent.MVar.YC
 import Data.ADT.Getters (mkADTGetters)
 import FRP.Peakachu.Backend (Backend(..), Sink(..))
 
+import Control.Concurrent.MVar
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Monoid (Monoid(..))
 import Graphics.UI.GLUT (
@@ -49,14 +51,14 @@ glut =
       initialDisplayMode $~ (DoubleBuffered:)
       createWindow "test"
       displayCallback $= return ()
-      setCallbacks
-      return Sink
-        { sinkConsume = consume
-        , sinkInit = handler $ MouseMotionEvent 0 0
-        , sinkMainLoop = Just mainLoop
-        , sinkQuitLoop = return () -- leaveMainLoop doesn't seem to work
-        }
-      where
+      -- all the OpenGL drawing must be performed from the same thread
+      -- that runs the GLUT event-loop.
+      -- so instead of consuming when given input, we add it to the todo-list.
+      -- the next time any GLUT event comes (should be immediate),
+      -- we consume all the todo-list.
+      -- without this mechanism the graphics flickers.
+      todoVar <- newMVar []
+      let
         consume (DrawImage image) = do
           clear [ ColorBuffer ]
           runImage image
@@ -71,16 +73,28 @@ glut =
             handler . TimerEvent $ tag
           return ()
           -- addTimerCallback timeout . handler count . TimerEvent $ tag
+        preHandler event = do
+          todo <- takeMVar todoVar
+          putMVar todoVar []
+          mapM_ consume . reverse $ todo
+          handler event
         setCallbacks = do
-          idleCallback $= Just (handler IdleEvent)
+          idleCallback $= Just (preHandler IdleEvent)
           keyboardMouseCallback $=
             Just (
             (fmap . fmap . fmap . fmap)
-            handler KeyboardMouseEvent)
+            preHandler KeyboardMouseEvent)
           motionCallback $= Just motion
           passiveMotionCallback $= Just motion
         motion (Position px py) = do
           Size sx sy <- get windowSize
-          handler $ MouseMotionEvent (p2g sx px) (- p2g sy py)
+          preHandler $ MouseMotionEvent (p2g sx px) (- p2g sy py)
         p2g sa pa = 2 * fromIntegral pa / fromIntegral sa - 1
+      setCallbacks
+      return Sink
+        { sinkConsume = modifyMVarPure todoVar . (:)
+        , sinkInit = handler $ MouseMotionEvent 0 0
+        , sinkMainLoop = Just mainLoop
+        , sinkQuitLoop = return () -- leaveMainLoop doesn't seem to work
+        }
 
