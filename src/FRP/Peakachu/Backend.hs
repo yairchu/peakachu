@@ -30,7 +30,7 @@ instance Monoid (Sink a) where
   mappend a b =
     Sink
     { sinkConsume = on (liftM2 (>>)) sinkConsume a b
-    , sinkInit = on (>>) sinkQuitLoop a b
+    , sinkInit = on (>>) sinkInit a b
     , sinkMainLoop = on combineMainLoops sinkMainLoop a b
     , sinkQuitLoop = on (>>) sinkQuitLoop a b
     }

@@ -12,17 +12,18 @@ import FRP.Peakachu.Backend (Backend(..), Sink(..))
 
 import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
 import Data.Monoid (Monoid(..))
-import Graphics.UI.GLUT (
-  GLfloat, ($=), ($~), get,
-  ClearBuffer(..), Key(..), KeyState(..),
-  Modifiers, Position(..), Size(..), Timeout,
-  DisplayMode(..), initialDisplayMode, swapBuffers,
-  createWindow, getArgsAndInitialize,
-  displayCallback, idleCallback,
-  keyboardMouseCallback,
-  motionCallback, passiveMotionCallback,
-  windowSize, addTimerCallback,
-  clear, flush, mainLoop)
+import Graphics.UI.GLUT
+  ( GLfloat, ($=), ($~), get
+  , ClearBuffer(..), Key(..), KeyState(..)
+  , Modifiers, Position(..), Size(..), Timeout
+  , DisplayMode(..), initialDisplayMode, swapBuffers
+  , createWindow, getArgsAndInitialize
+  , displayCallback, idleCallback
+  , keyboardMouseCallback
+  , motionCallback, passiveMotionCallback
+  , windowSize, addTimerCallback
+  , clear, flush, mainLoop, leaveMainLoop
+  )
 
 data Image = Image { runImage :: IO ()}
 
@@ -91,6 +92,6 @@ glut =
         { sinkConsume = modifyMVarPure todoVar . (:)
         , sinkInit = handler $ MouseMotionEvent 0 0
         , sinkMainLoop = Just mainLoop
-        , sinkQuitLoop = return () -- leaveMainLoop doesn't seem to work
+        , sinkQuitLoop = leaveMainLoop
         }
 

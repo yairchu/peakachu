@@ -2,7 +2,7 @@
 
 module FRP.Peakachu.Program
   ( Program(..), MergeProgram(..), AppendProgram(..)
-  , scanlP, loopbackP, lstP, lstPs
+  , scanlP, loopbackP, lstP, lstPs, takeWhileP
   , inMergeProgram1
   ) where
 
@@ -56,6 +56,14 @@ instance FilterCategory Program where
     where
       f = (`Program` Just f)
   arrC = (<$> id)
+
+takeWhileP :: (a -> Bool) -> Program a a
+takeWhileP cond =
+  Program [] (Just f)
+  where
+    f x
+      | cond x = Program [x] (Just f)
+      | otherwise = Program [] Nothing
 
 emptyProgram :: Program a b
 emptyProgram = Program [] Nothing
