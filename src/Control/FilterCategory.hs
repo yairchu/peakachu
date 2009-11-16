@@ -1,6 +1,6 @@
 module Control.FilterCategory
   ( FilterCategory(..)
-  , rid, mapMaybeC, filterC, getterToCond
+  , rid, mapMaybeC, filterC
   ) where
 
 import Control.Category (Category(..))
@@ -26,7 +26,4 @@ filterC cond =
     f x = do
       guard $ cond x
       return x
-
-getterToCond :: (a -> Maybe b) -> (a -> Bool)
-getterToCond = fmap (not . null . toList)
 

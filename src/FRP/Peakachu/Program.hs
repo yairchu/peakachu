@@ -4,7 +4,7 @@ module FRP.Peakachu.Program
   ( Program(..), MergeProgram(..), AppendProgram(..)
   , ProgCat(..)
   , singleValueP
-  , loopbackP, lstP, lstPs, takeWhileP
+  , loopbackP, lstP, lstPs
   , inMergeProgram1
   ) where
 
@@ -29,6 +29,7 @@ data Program a b = Program
 class FilterCategory prog => ProgCat prog where
   scanlP :: (b -> a -> b) -> b -> prog a b
   emptyP :: prog a b
+  takeWhileP :: (a -> Bool) -> prog a a
 
 singleValueP :: ProgCat prog => prog a ()
 singleValueP = scanlP const () . emptyP
@@ -70,14 +71,12 @@ instance ProgCat Program where
   emptyP = Program [] Nothing
   scanlP step start =
     Program [start] $ Just (scanlP step . step start)
-
-takeWhileP :: (a -> Bool) -> Program a a
-takeWhileP cond =
-  Program [] (Just f)
-  where
-    f x
-      | cond x = Program [x] (Just f)
-      | otherwise = Program [] Nothing
+  takeWhileP cond =
+    Program [] (Just f)
+    where
+      f x
+        | cond x = Program [x] (Just f)
+        | otherwise = Program [] Nothing
 
 newtype MergeProgram a b = MergeProg
   { runMergeProg :: Program a b
@@ -173,10 +172,10 @@ loopbackP loop =
   loopbackPh . (.)
   (withMergeProgram2 mappend (Left <$> id) (Right <$> loop))
 
-lstPs :: (Maybe b) -> (a -> Maybe b) -> MergeProgram a b
+lstPs :: ProgCat prog => (Maybe b) -> (a -> Maybe b) -> prog a b
 lstPs start f =
-  rid . MergeProg (scanlP (flip orElse) start) . arrC f
+  rid . scanlP (flip orElse) start . arrC f
 
-lstP :: (a -> Maybe b) -> MergeProgram a b
+lstP :: ProgCat prog => (a -> Maybe b) -> prog a b
 lstP = lstPs Nothing
 
