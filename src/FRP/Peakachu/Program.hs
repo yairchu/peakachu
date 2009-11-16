@@ -3,7 +3,7 @@
 module FRP.Peakachu.Program
   ( Program(..), MergeProgram(..), AppendProgram(..)
   , ProgCat(..)
-  , singleValueP, lstP, lstPs
+  , singleValueP, lstP, lstPs, delayP
   ) where
 
 import Control.FilterCategory (FilterCategory(..), rid)
@@ -14,6 +14,7 @@ import Control.Category (Category(..))
 import Control.Monad (MonadPlus(..), ap)
 import Data.ADT.Getters (mkADTGetters)
 import Data.Generics.Aliases (orElse)
+import Data.List (genericDrop, genericTake)
 import Data.Maybe (mapMaybe, catMaybes)
 import Data.Monoid (Monoid(..))
 
@@ -32,6 +33,12 @@ class FilterCategory prog => ProgCat prog where
 
 singleValueP :: ProgCat prog => prog a ()
 singleValueP = scanlP const () . emptyP
+
+delayP :: (Integral i, ProgCat prog) => i -> prog a a
+delayP n =
+  flattenC . arrC (genericDrop n) . scanlP step []
+  where
+    step xs x = x : genericTake n xs
 
 instance Category Program where
   id =
