@@ -3,9 +3,7 @@
 module FRP.Peakachu.Program
   ( Program(..), MergeProgram(..), AppendProgram(..)
   , ProgCat(..)
-  , singleValueP
-  , loopbackP, lstP, lstPs
-  , inMergeProgram1
+  , singleValueP, lstP, lstPs
   ) where
 
 import Control.FilterCategory (FilterCategory(..), rid)
@@ -30,6 +28,7 @@ class FilterCategory prog => ProgCat prog where
   scanlP :: (b -> a -> b) -> b -> prog a b
   emptyP :: prog a b
   takeWhileP :: (a -> Bool) -> prog a a
+  loopbackP :: prog a (Either a b) -> prog a b
 
 singleValueP :: ProgCat prog => prog a ()
 singleValueP = scanlP const () . emptyP
@@ -67,6 +66,8 @@ instance FilterCategory Program where
       f = (`Program` Just f)
   arrC = (<$> id)
 
+$(mkADTGetters ''Either)
+
 instance ProgCat Program where
   emptyP = Program [] Nothing
   scanlP step start =
@@ -77,12 +78,22 @@ instance ProgCat Program where
       f x
         | cond x = Program [x] (Just f)
         | otherwise = Program [] Nothing
+  loopbackP program =
+    Program
+    { progVals = stuff >>= mapMaybe gRight . progVals
+    , progMore = (fmap . fmap) loopbackP . progMore . last $ stuff
+    }
+    where
+      stuff =
+        scanl step program
+        . mapMaybe gLeft . progVals $ program
+      step prev val =
+        maybe emptyP ($ val) (progMore prev)
 
 newtype MergeProgram a b = MergeProg
   { runMergeProg :: Program a b
   } deriving (Category, FilterCategory, Functor, ProgCat)
 
-$(mkInNewtypeFuncs [1] ''MergeProgram)
 $(mkWithNewtypeFuncs [2] ''MergeProgram)
 
 instance Monoid (MergeProgram a b) where
@@ -151,26 +162,6 @@ instance MonadPlus (AppendProgram a) where
 instance Applicative (AppendProgram a) where
   pure = return
   (<*>) = ap
-
-$(mkADTGetters ''Either)
-
-loopbackPh :: Program a (Either b a) -> Program a b
-loopbackPh program =
-  Program
-  { progVals = stuff >>= mapMaybe gLeft . progVals
-  , progMore = (fmap . fmap) loopbackPh . progMore . last $ stuff
-  }
-  where
-    stuff =
-      scanl step program
-      . mapMaybe gRight . progVals $ program
-    step prev val =
-      maybe emptyP ($ val) (progMore prev)
-
-loopbackP :: Program b a -> Program a b -> Program a b
-loopbackP loop =
-  loopbackPh . (.)
-  (withMergeProgram2 mappend (Left <$> id) (Right <$> loop))
 
 lstPs :: ProgCat prog => (Maybe b) -> (a -> Maybe b) -> prog a b
 lstPs start f =
