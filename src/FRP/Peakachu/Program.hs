@@ -2,7 +2,9 @@
 
 module FRP.Peakachu.Program
   ( Program(..), MergeProgram(..), AppendProgram(..)
-  , scanlP, loopbackP, lstP, lstPs, takeWhileP
+  , ProgCat(..)
+  , singleValueP
+  , loopbackP, lstP, lstPs, takeWhileP
   , inMergeProgram1
   ) where
 
@@ -23,6 +25,13 @@ data Program a b = Program
   { progVals :: [b]
   , progMore :: Maybe (a -> Program a b)
   }
+
+class FilterCategory prog => ProgCat prog where
+  scanlP :: (b -> a -> b) -> b -> prog a b
+  emptyP :: prog a b
+
+singleValueP :: ProgCat prog => prog a ()
+singleValueP = scanlP const () . emptyP
 
 instance Category Program where
   id =
@@ -57,6 +66,11 @@ instance FilterCategory Program where
       f = (`Program` Just f)
   arrC = (<$> id)
 
+instance ProgCat Program where
+  emptyP = Program [] Nothing
+  scanlP step start =
+    Program [start] $ Just (scanlP step . step start)
+
 takeWhileP :: (a -> Bool) -> Program a a
 takeWhileP cond =
   Program [] (Just f)
@@ -65,18 +79,15 @@ takeWhileP cond =
       | cond x = Program [x] (Just f)
       | otherwise = Program [] Nothing
 
-emptyProgram :: Program a b
-emptyProgram = Program [] Nothing
-
 newtype MergeProgram a b = MergeProg
   { runMergeProg :: Program a b
-  } deriving (Category, FilterCategory, Functor)
+  } deriving (Category, FilterCategory, Functor, ProgCat)
 
 $(mkInNewtypeFuncs [1] ''MergeProgram)
 $(mkWithNewtypeFuncs [2] ''MergeProgram)
 
 instance Monoid (MergeProgram a b) where
-  mempty = MergeProg emptyProgram
+  mempty = emptyP
   mappend (MergeProg left) (MergeProg right) =
     MergeProg Program
     { progVals = progVals left ++ progVals right
@@ -103,12 +114,12 @@ instance Applicative (MergeProgram a) where
 
 newtype AppendProgram a b = AppendProg
   { runAppendProg :: Program a b
-  } deriving (Category, FilterCategory, Functor)
+  } deriving (Category, FilterCategory, Functor, ProgCat)
 
 $(mkWithNewtypeFuncs [1,2] ''AppendProgram)
 
 instance Monoid (AppendProgram a b) where
-  mempty = AppendProg emptyProgram
+  mempty = emptyP
   mappend (AppendProg left) (AppendProg right) =
     AppendProg $
     case progMore left of
@@ -142,10 +153,6 @@ instance Applicative (AppendProgram a) where
   pure = return
   (<*>) = ap
 
-scanlP :: (s -> i -> s) -> s -> Program i s
-scanlP step start =
-  Program [start] $ Just (scanlP step . step start)
-
 $(mkADTGetters ''Either)
 
 loopbackPh :: Program a (Either b a) -> Program a b
@@ -159,7 +166,7 @@ loopbackPh program =
       scanl step program
       . mapMaybe gRight . progVals $ program
     step prev val =
-      maybe emptyProgram ($ val) (progMore prev)
+      maybe emptyP ($ val) (progMore prev)
 
 loopbackP :: Program b a -> Program a b -> Program a b
 loopbackP loop =
