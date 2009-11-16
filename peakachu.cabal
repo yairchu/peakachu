@@ -1,9 +1,10 @@
 Name:                peakachu
 Version:             0.2
 Category:            FRP
-Synopsis:            An FRP library with a GLUT backend
+Synopsis:            Experiemental library for composable interactive programs
 Description:
-  An experiemental simple FRP library.
+  Experiemental library for composable interactive programs.
+
   GLUT backend included.
 License:             BSD3
 License-file:        LICENSE
