@@ -1,3 +1,5 @@
+-- | A Peakachu backend to write output to the console
+
 module FRP.Peakachu.Backend.StdIO (stdoutB) where
 
 import FRP.Peakachu.Backend (Backend(..), Sink(..))
@@ -14,3 +16,4 @@ stdoutB =
     consume x = do
       putStr x
       hFlush stdout
+

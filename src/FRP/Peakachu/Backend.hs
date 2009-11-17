@@ -1,11 +1,13 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module FRP.Peakachu.Backend
   ( Backend(..), Sink(..)
   ) where
 
 import Control.FilterCategory (FilterCategory(..))
+import Data.Newtype (mkInNewtypeFuncs)
 
-import Control.Applicative ((<$>))
-import Control.Category
+import Control.Category (Category(..))
 import Control.Concurrent (forkIO)
 import Control.Monad (liftM2)
 import Data.Generics.Aliases (orElse)
@@ -34,29 +36,22 @@ instance Monoid (Sink a) where
     , sinkMainLoop = on combineMainLoops sinkMainLoop a b
     , sinkQuitLoop = on (>>) sinkQuitLoop a b
     }
-    where
-
-type InBackend p2b b2p = (b2p -> IO ()) -> IO (Sink p2b)
 
 newtype Backend progToBack backToProg =
   Backend
-  { runBackend :: InBackend progToBack backToProg
+  { runBackend :: (backToProg -> IO ()) -> IO (Sink progToBack)
   } -- if Monoid m => Monoid (IO m)
   -- then could use GeneralizedNewtypeDeriving for Monoid
 
-inBackend
-  :: (InBackend p0b b0p -> InBackend p1b b1p)
-  -> Backend p0b b0p -> Backend p1b b1p
-inBackend f = Backend . f . runBackend
+$(mkInNewtypeFuncs [1,2] ''Backend)
 
 instance Monoid (Backend p2b b2p) where
   mempty = Backend . return . return $ mempty
-  mappend (Backend x) (Backend y) =
-    Backend $ (liftM2 . liftM2) mappend x y
+  mappend = inBackend2 . liftM2 . liftM2 $ mappend
 
 instance Functor (Backend p2b) where
   fmap =
-    inBackend . arg . arg
+    inBackend1 . arg . arg
     where
       arg = flip (.)
 
@@ -84,5 +79,5 @@ instance Category Backend where
 
 instance FilterCategory Backend where
   flattenC = Backend (runBackend id . mapM_)
-  arrC = (<$> id)
+  arrC = (`fmap` id)
 

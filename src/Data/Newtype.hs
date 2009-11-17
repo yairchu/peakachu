@@ -1,3 +1,16 @@
+-- | In/with newtype functions generation with Template Haskell.
+--
+-- Example:
+--
+-- > {-# LANGUAGE TemplateHaskell #-}
+-- > import Control.Applicative (Applicative(..), ZipList(..))
+-- > import Data.Newtype (mkWithNewTypeFuncs)
+-- >
+-- > $(mkWithNewtypeFuncs [2] ''ZipList)
+-- >
+-- > > withZipList2 (<*>) [(+3), (*3)] [6, 7]
+-- > [9, 21]
+
 module Data.Newtype
   ( mkInNewtypeFuncs, mkWithNewtypeFuncs
   ) where

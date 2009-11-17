@@ -1,16 +1,23 @@
--- | ADT getters
+-- | ADT getters generation with Template Haskell
 --
 -- Example:
 --
 -- > {-# LANGUAGE TemplateHaskell #-}
 -- > data Blah a = NoBlah | YesBlah a | ManyBlah a Int
--- > $(mkADTGetterFuncs ''Blah)
+-- > $(mkADTGetters ''Blah)
 --
 -- Generates
 --
 -- > gNoBlah :: Blah a -> Maybe ()
 -- > gYesBlah :: Blah a -> Maybe a
 -- > gManyBlah :: Blah a -> Maybe (a, Int)
+--
+-- Where
+--
+-- > gYesBlah (YesBlah a) = Just a
+-- > gYesBlah _ = Nothing
+--
+-- etc.
 
 module Data.ADT.Getters
   ( mkADTGetters

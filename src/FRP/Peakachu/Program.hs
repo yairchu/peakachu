@@ -6,7 +6,7 @@ module FRP.Peakachu.Program
   , singleValueP, lstP, lstPs, delayP
   ) where
 
-import Control.FilterCategory (FilterCategory(..), rid)
+import Control.FilterCategory (FilterCategory(..), genericFlattenC)
 import Data.ADT.Getters (mkADTGetters)
 import Data.Bijection.YC (withBi2)
 import Data.Newtype (mkWithNewtypeFuncs)
@@ -176,7 +176,7 @@ instance Applicative (AppendProgram a) where
 
 lstPs :: ProgCat prog => Maybe b -> (a -> Maybe b) -> prog a b
 lstPs start f =
-  rid . scanlP (flip orElse) start . arrC f
+  genericFlattenC . scanlP (flip orElse) start . arrC f
 
 lstP :: ProgCat prog => (a -> Maybe b) -> prog a b
 lstP = lstPs Nothing

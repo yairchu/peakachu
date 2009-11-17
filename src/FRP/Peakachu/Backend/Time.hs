@@ -1,3 +1,5 @@
+-- | A Peakachu backend to get the time
+
 module FRP.Peakachu.Backend.Time
   ( getTimeB
   ) where
