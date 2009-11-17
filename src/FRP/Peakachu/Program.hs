@@ -7,12 +7,14 @@ module FRP.Peakachu.Program
   ) where
 
 import Control.FilterCategory (FilterCategory(..), rid)
-import Data.Newtype
+import Data.ADT.Getters (mkADTGetters)
+import Data.Bijection.YC (withBi2)
+import Data.Newtype (mkWithNewtypeFuncs)
 
 import Control.Applicative (Applicative(..), (<$>), liftA2)
 import Control.Category (Category(..))
 import Control.Monad (MonadPlus(..), ap)
-import Data.ADT.Getters (mkADTGetters)
+import Data.Bijection (Bijection(..), bimap)
 import Data.Generics.Aliases (orElse)
 import Data.List (genericDrop, genericTake)
 import Data.Maybe (mapMaybe, catMaybes)
@@ -38,7 +40,7 @@ delayP :: (Integral i, ProgCat prog) => i -> prog a a
 delayP n =
   flattenC . arrC (genericDrop n) . scanlP step []
   where
-    step xs x = x : genericTake n xs
+    step xs = (: genericTake n xs)
 
 instance Category Program where
   id =
@@ -103,16 +105,18 @@ newtype MergeProgram a b = MergeProg
 
 $(mkWithNewtypeFuncs [2] ''MergeProgram)
 
+biMergeProg :: Bijection (->) (Program a b) (MergeProgram a b)
+biMergeProg = Bi MergeProg runMergeProg
+
 instance Monoid (MergeProgram a b) where
   mempty = emptyP
   mappend (MergeProg left) (MergeProg right) =
     MergeProg Program
-    { progVals = progVals left ++ progVals right
+    { progVals =
+      mappend (progVals left) (progVals right)
     , progMore =
-      (fmap . fmap) runMergeProg $
-      mappend
-      ((fmap . fmap) MergeProg (progMore left))
-      ((fmap . fmap) MergeProg (progMore right))
+      withBi2 ((bimap . bimap) biMergeProg)
+      mappend (progMore left) (progMore right)
     }
 
 instance Applicative (MergeProgram a) where
@@ -158,8 +162,8 @@ instance Monad (AppendProgram a) where
         AppendProg Program
         { progVals = []
         , progMore =
-          (fmap . fmap . withAppendProgram1) (>>= right)
-          . progMore $ left
+          (fmap . fmap . withAppendProgram1)
+          (>>= right) (progMore left)
         }
 
 instance MonadPlus (AppendProgram a) where
@@ -170,7 +174,7 @@ instance Applicative (AppendProgram a) where
   pure = return
   (<*>) = ap
 
-lstPs :: ProgCat prog => (Maybe b) -> (a -> Maybe b) -> prog a b
+lstPs :: ProgCat prog => Maybe b -> (a -> Maybe b) -> prog a b
 lstPs start f =
   rid . scanlP (flip orElse) start . arrC f
 

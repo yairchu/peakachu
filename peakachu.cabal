@@ -31,6 +31,7 @@ Library
                        Control.Concurrent.MVar.YC
                        Control.FilterCategory
                        Data.ADT.Getters
+                       Data.Bijection.YC
                        Data.Newtype
   ghc-options:         -O2 -Wall
 
