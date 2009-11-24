@@ -10,6 +10,7 @@ import Data.Newtype (mkInNewtypeFuncs)
 import Control.Category (Category(..))
 import Control.Concurrent (forkIO)
 import Control.Monad (liftM2)
+import Data.DeriveTH (derive, makeFunctor)
 import Data.Generics.Aliases (orElse)
 import Data.Function (on)
 import Data.Monoid (Monoid(..))
@@ -42,18 +43,12 @@ newtype Backend progToBack backToProg =
   { runBackend :: (backToProg -> IO ()) -> IO (Sink progToBack)
   } -- if Monoid m => Monoid (IO m)
   -- then could use GeneralizedNewtypeDeriving for Monoid
-
-$(mkInNewtypeFuncs [1,2] ''Backend)
+$(derive makeFunctor ''Backend)
+$(mkInNewtypeFuncs [2] ''Backend)
 
 instance Monoid (Backend p2b b2p) where
   mempty = Backend . return . return $ mempty
   mappend = inBackend2 . liftM2 . liftM2 $ mappend
-
-instance Functor (Backend p2b) where
-  fmap =
-    inBackend1 . arg . arg
-    where
-      arg = flip (.)
 
 instance Category Backend where
   id =

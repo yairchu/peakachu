@@ -15,6 +15,7 @@ import Control.Applicative (Applicative(..), (<$>), liftA2)
 import Control.Category (Category(..))
 import Control.Monad (MonadPlus(..), ap)
 import Data.Bijection (Bijection(..), bimap)
+import Data.DeriveTH (derive, makeFunctor)
 import Data.Generics.Aliases (orElse)
 import Data.List (genericDrop, genericTake)
 import Data.Maybe (mapMaybe, catMaybes)
@@ -26,6 +27,7 @@ data Program a b = Program
   { progVals :: [b]
   , progMore :: Maybe (a -> Program a b)
   }
+$(derive makeFunctor ''Program)
 
 class FilterCategory prog => ProgCat prog where
   scanlP :: (b -> a -> b) -> b -> prog a b
@@ -60,13 +62,6 @@ instance Category Program where
         moreFunc <- rightMore
         lastStuff <- last stuff
         return $ (.) (Program [] (progMore lastStuff)) . moreFunc
-
-instance Functor (Program a) where
-  fmap f p =
-    Program
-    { progVals = fmap f . progVals $ p
-    , progMore = (fmap . fmap . fmap) f . progMore $ p
-    }
 
 instance FilterCategory Program where
   flattenC =
