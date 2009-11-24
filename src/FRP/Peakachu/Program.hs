@@ -25,6 +25,8 @@ module FRP.Peakachu.Program
   ( Program(..), MergeProgram(..), AppendProgram(..)
   , ProgCat(..)
   , singleValueP, lstP, lstPs, delayP
+  , withMergeProgram1, withMergeProgram2
+  , withAppendProgram1, withAppendProgram2
   ) where
 
 import Control.FilterCategory (FilterCategory(..), genericFlattenC)
@@ -127,7 +129,7 @@ newtype MergeProgram a b = MergeProg
   { runMergeProg :: Program a b
   } deriving (Category, FilterCategory, Functor, ProgCat)
 
-$(mkWithNewtypeFuncs [2] ''MergeProgram)
+$(mkWithNewtypeFuncs [1,2] ''MergeProgram)
 
 biMergeProg :: Bijection (->) (Program a b) (MergeProgram a b)
 biMergeProg = Bi MergeProg runMergeProg

@@ -7,16 +7,16 @@ module FRP.Peakachu.Backend.StdIO
 import FRP.Peakachu.Backend (Backend(..), Sink(..))
 import Control.Concurrent.MVar.YC (writeMVar)
 
-import Control.Concurrent.MVar (newMVar, readMVar)
+import Control.Concurrent.MVar
+  (newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (when)
 import Data.Monoid (mempty)
-import System.IO (hFlush, stdout)
-
-outSink :: Sink String
-outSink = mempty { sinkConsume = (>> hFlush stdout) . putStr }
+import System.IO (hFlush, hReady, stdin, stdout)
 
 stdoutB :: Backend String ()
-stdoutB = Backend . return . return $ outSink
+stdoutB =
+  Backend . return . return $
+  mempty { sinkConsume = (>> hFlush stdout) . putStr }
 
 whileM :: Monad m => m Bool -> m () -> m ()
 whileM cond iter = do
@@ -34,11 +34,21 @@ interactB =
   where
     f handler = do
       resumeVar <- newMVar True
-      return outSink
+      lineVar <- newMVar ""
+      return mempty
         { sinkQuitLoop = writeMVar resumeVar False
+        , sinkConsume = putStrLn
         , sinkMainLoop =
-            Just $ whileM
-            (readMVar resumeVar)
-            (getLine >>= handler)
+            Just . whileM (readMVar resumeVar) $ do
+              isReady <- hReady stdin
+              when isReady $ do
+                c <- getChar
+                prevLine <- takeMVar lineVar
+                case c of
+                  '\n' -> do
+                    handler prevLine
+                    putMVar lineVar ""
+                  _ -> do
+                    putMVar lineVar $ prevLine ++ [c]
         }
 
