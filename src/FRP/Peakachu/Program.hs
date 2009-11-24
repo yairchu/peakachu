@@ -1,5 +1,26 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
 
+-- | @Program a b@ represents a computer program,
+-- which accepts inputs of type @a@, outputs values of type @b@,
+-- and can terminate at any point.
+-- It can output zero or more values after each input.
+--
+-- * A simple stateless input-output-loop can be created from a function
+--   with 'arrC'.
+--
+-- * A simple statefull input-output-loop can be created using 'scanlP'.
+--
+-- * Two programs can be composed, such that ones' outputs are fed
+--   as another's inputs. ('Category')
+--
+-- * Program's outputs can be filtered to create a new program. (@filterC@)
+--
+-- There are two ways of combining 'Program's ('Monoid'): running them in parallel, or in sequence:
+--
+-- * 'AppendProgram' allows us to run one program after the other finishes. @AppendProgram@ is also a 'Monad' and 'MonadPlus', where the monadic bind allows us to invoke inner programs based on an outer program's outputs.
+--
+-- * 'MergeProgram' runs two programs in parallel and outputs both of their outputs. @MergeProgram@ is also an 'Applicative', where for every input, it combines each of the first program's response outputs with each of the second program's.
+
 module FRP.Peakachu.Program
   ( Program(..), MergeProgram(..), AppendProgram(..)
   , ProgCat(..)
@@ -23,6 +44,7 @@ import Data.Monoid (Monoid(..))
 
 import Prelude hiding ((.), id)
 
+-- | A computer program
 data Program a b = Program
   { progVals :: [b]
   , progMore :: Maybe (a -> Program a b)
@@ -30,14 +52,20 @@ data Program a b = Program
 $(derive makeFunctor ''Program)
 
 class FilterCategory prog => ProgCat prog where
+  -- | Create a stateful input-output-loop from a simple function
   scanlP :: (b -> a -> b) -> b -> prog a b
+  -- | A program that terminates immediately
   emptyP :: prog a b
+  -- | Terminate when a predicate on input fails
   takeWhileP :: (a -> Bool) -> prog a a
+  -- | Feed some outputs of a 'Program' to itself
   loopbackP :: prog a (Either a b) -> prog a b
 
+-- | A program that outputs a value and immediately terminates
 singleValueP :: ProgCat prog => prog a ()
 singleValueP = scanlP const () . emptyP
 
+-- | Delay the outputs of a 'Program'
 delayP :: (Integral i, ProgCat prog) => i -> prog a a
 delayP n =
   flattenC . arrC (genericDrop n) . scanlP step []
@@ -94,6 +122,7 @@ instance ProgCat Program where
       step prev val =
         maybe emptyP ($ val) (progMore prev)
 
+-- Combine programs to run in parallel
 newtype MergeProgram a b = MergeProg
   { runMergeProg :: Program a b
   } deriving (Category, FilterCategory, Functor, ProgCat)
@@ -128,6 +157,7 @@ instance Applicative (MergeProgram a) where
       (<*>) (progMore left) (progMore right)
     }
 
+-- Combine programs to run in sequence
 newtype AppendProgram a b = AppendProg
   { runAppendProg :: Program a b
   } deriving (Category, FilterCategory, Functor, ProgCat)
@@ -169,10 +199,12 @@ instance Applicative (AppendProgram a) where
   pure = return
   (<*>) = ap
 
+-- | Given a partial function @(a -> Maybe b)@ and a start value, output its most recent result on an input.
 lstPs :: ProgCat prog => Maybe b -> (a -> Maybe b) -> prog a b
 lstPs start f =
   genericFlattenC . scanlP (flip orElse) start . arrC f
 
+-- | Given a partial function @(a -> Maybe b)@, output its most recent result on an input.
 lstP :: ProgCat prog => (a -> Maybe b) -> prog a b
 lstP = lstPs Nothing
 
