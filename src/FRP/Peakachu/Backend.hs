@@ -28,15 +28,21 @@ combineMainLoops :: Maybe (IO ()) -> Maybe (IO ()) -> Maybe (IO ())
 combineMainLoops (Just x) (Just y) = Just $ forkIO x >> y
 combineMainLoops x y = orElse x y
 
+mergeSinks :: Sink a -> Sink b -> (c -> IO ()) -> Sink c
+mergeSinks left right consume =
+  Sink
+  { sinkConsume = consume
+  , sinkInit = sinkInit left >> sinkInit right
+  , sinkMainLoop =
+    combineMainLoops (sinkMainLoop left) (sinkMainLoop right)
+  , sinkQuitLoop = sinkQuitLoop left >> sinkQuitLoop right
+  }
+
 instance Monoid (Sink a) where
   mempty = Sink (const (return ())) (return ()) Nothing (return ())
   mappend a b =
-    Sink
-    { sinkConsume = on (liftM2 (>>)) sinkConsume a b
-    , sinkInit = on (>>) sinkInit a b
-    , sinkMainLoop = on combineMainLoops sinkMainLoop a b
-    , sinkQuitLoop = on (>>) sinkQuitLoop a b
-    }
+    mergeSinks a b $
+    on (liftM2 (>>)) sinkConsume a b
 
 newtype Backend progToBack backToProg =
   Backend
@@ -56,15 +62,7 @@ instance Category Backend where
       f handler = do
         sinkLeft <- left handler
         sinkRight <- right . sinkConsume $ sinkLeft
-        return sinkRight
-          { sinkInit =
-              sinkInit sinkLeft >> sinkInit sinkRight
-          , sinkMainLoop =
-              combineMainLoops
-              (sinkMainLoop sinkLeft) (sinkMainLoop sinkRight)
-          , sinkQuitLoop =
-              sinkQuitLoop sinkLeft >> sinkQuitLoop sinkRight
-          }
+        return $ mergeSinks sinkLeft sinkRight (sinkConsume sinkRight)
 
 instance FilterCategory Backend where
   flattenC = Backend (runBackend id . mapM_)
