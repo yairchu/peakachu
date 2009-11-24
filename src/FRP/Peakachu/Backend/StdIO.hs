@@ -9,34 +9,36 @@ import Control.Concurrent.MVar.YC (writeMVar)
 
 import Control.Concurrent.MVar (newMVar, readMVar)
 import Control.Monad (when)
-import Data.Function (fix)
 import Data.Monoid (mempty)
 import System.IO (hFlush, stdout)
 
 outSink :: Sink String
-outSink =
-  mempty { sinkConsume = consume }
-  where
-    consume x = do
-      putStr x
-      hFlush stdout
+outSink = mempty { sinkConsume = (>> hFlush stdout) . putStr }
 
 stdoutB :: Backend String ()
-stdoutB =
-  Backend . return . return $ outSink
+stdoutB = Backend . return . return $ outSink
 
+whileM :: Monad m => m Bool -> m () -> m ()
+whileM cond iter = do
+  resume <- cond
+  when resume $ do
+    iter
+    whileM cond iter
+
+-- | The Peakachu equivalent to 'interact'.
+-- Prints all output lines from the program, and feeds
+-- input lines from the user to the program.
 interactB :: Backend String String
 interactB =
-  Backend $ f
+  Backend f
   where
     f handler = do
       resumeVar <- newMVar True
       return outSink
         { sinkQuitLoop = writeMVar resumeVar False
-        , sinkMainLoop = Just . fix $ \resume -> do
-            r <- readMVar resumeVar
-            when r $ do
-              getLine >>= handler
-              resume
+        , sinkMainLoop =
+            Just $ whileM
+            (readMVar resumeVar)
+            (getLine >>= handler)
         }
 
