@@ -1,14 +1,14 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
 
 module FRP.Peakachu.Backend
   ( Backend(..), Sink(..)
   ) where
 
 import Control.FilterCategory (FilterCategory(..))
-import Data.Newtype (mkInNewtypeFuncs)
 
 import Control.Category (Category(..))
 import Control.Concurrent (forkIO)
+import Control.Instances () -- IO Monoids
 import Control.Monad (liftM2)
 import Data.DeriveTH (derive, makeFunctor)
 import Data.Generics.Aliases (orElse)
@@ -41,14 +41,8 @@ instance Monoid (Sink a) where
 newtype Backend progToBack backToProg =
   Backend
   { runBackend :: (backToProg -> IO ()) -> IO (Sink progToBack)
-  } -- if Monoid m => Monoid (IO m)
-  -- then could use GeneralizedNewtypeDeriving for Monoid
+  } deriving Monoid
 $(derive makeFunctor ''Backend)
-$(mkInNewtypeFuncs [2] ''Backend)
-
-instance Monoid (Backend p2b b2p) where
-  mempty = Backend . return . return $ mempty
-  mappend = inBackend2 . liftM2 . liftM2 $ mappend
 
 instance Category Backend where
   id =
