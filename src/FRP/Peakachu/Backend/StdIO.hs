@@ -48,7 +48,7 @@ interactB =
                   '\n' -> do
                     handler prevLine
                     putMVar lineVar ""
-                  _ -> do
+                  _ ->
                     putMVar lineVar $ prevLine ++ [c]
         }
 

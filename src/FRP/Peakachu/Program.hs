@@ -39,7 +39,6 @@ import Control.Category (Category(..))
 import Control.Monad (MonadPlus(..), ap)
 import Data.Bijection (Bijection(..), bimap)
 import Data.DeriveTH (derive, makeFunctor)
-import Data.Generics.Aliases (orElse)
 import Data.List (genericDrop, genericTake)
 import Data.Maybe (mapMaybe, catMaybes)
 import Data.Monoid (Monoid(..))
@@ -200,6 +199,12 @@ instance MonadPlus (AppendProgram a) where
 instance Applicative (AppendProgram a) where
   pure = return
   (<*>) = ap
+
+-- Not using orElse from "syb" because that makes cabal-install problems
+orElse :: Maybe a -> Maybe a -> Maybe a
+orElse (Just x) _ = Just x
+orElse Nothing (Just x) = Just x
+orElse Nothing Nothing = Nothing
 
 -- | Given a partial function @(a -> Maybe b)@ and a start value, output its most recent result on an input.
 lstPs :: ProgCat prog => Maybe b -> (a -> Maybe b) -> prog a b
