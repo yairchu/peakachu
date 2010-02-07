@@ -25,9 +25,7 @@ data Sink a = Sink
 
 combineMainLoops :: Maybe (IO ()) -> Maybe (IO ()) -> Maybe (IO ())
 combineMainLoops (Just x) (Just y) = Just $ forkIO x >> y
-combineMainLoops (Just x) Nothing = Just x
-combineMainLoops Nothing (Just x) = Just x
-combineMainLoops Nothing Nothing = Nothing
+combineMainLoops x y = mappend x y
 
 mergeSinks :: Sink a -> Sink b -> (c -> IO ()) -> Sink c
 mergeSinks left right consume =

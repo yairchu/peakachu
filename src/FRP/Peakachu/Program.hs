@@ -200,16 +200,10 @@ instance Applicative (AppendProgram a) where
   pure = return
   (<*>) = ap
 
--- Not using orElse from "syb" because that makes cabal-install problems
-orElse :: Maybe a -> Maybe a -> Maybe a
-orElse (Just x) _ = Just x
-orElse Nothing (Just x) = Just x
-orElse Nothing Nothing = Nothing
-
 -- | Given a partial function @(a -> Maybe b)@ and a start value, output its most recent result on an input.
 lstPs :: ProgCat prog => Maybe b -> (a -> Maybe b) -> prog a b
 lstPs start f =
-  genericFlattenC . scanlP (flip orElse) start . arrC f
+  genericFlattenC . scanlP (flip mplus) start . arrC f
 
 -- | Given a partial function @(a -> Maybe b)@, output its most recent result on an input.
 lstP :: ProgCat prog => (a -> Maybe b) -> prog a b
