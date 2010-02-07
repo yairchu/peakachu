@@ -24,6 +24,7 @@ Library
                        FRP.Peakachu.Program
                        FRP.Peakachu.Program.Cont
                        FRP.Peakachu.Backend
+                       FRP.Peakachu.Backend.Internal
                        FRP.Peakachu.Backend.File
                        FRP.Peakachu.Backend.GLUT
                        FRP.Peakachu.Backend.GLUT.Getters

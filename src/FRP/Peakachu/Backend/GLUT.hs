@@ -8,7 +8,9 @@ module FRP.Peakachu.Backend.GLUT
 
 import Control.Concurrent.MVar.YC (modifyMVarPure)
 import Data.ADT.Getters (mkADTGetters)
-import FRP.Peakachu.Backend (Backend(..), Sink(..))
+import FRP.Peakachu.Backend (Backend(..))
+import FRP.Peakachu.Backend.Internal
+  (Sink(..), MainLoop(..), ParallelIO(..))
 
 import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
 import Data.Monoid (Monoid(..))
@@ -90,8 +92,11 @@ glut =
       setCallbacks
       return Sink
         { sinkConsume = modifyMVarPure todoVar . (:)
-        , sinkInit = handler $ MouseMotionEvent 0 0
-        , sinkMainLoop = Just mainLoop
-        , sinkQuitLoop = leaveMainLoop
+        , sinkMainLoop =
+            MainLoop
+            { mlInit = handler $ MouseMotionEvent 0 0
+            , mlQuit = leaveMainLoop
+            , mlRun = Just $ ParIO mainLoop
+            }
         }
 

@@ -2,7 +2,8 @@ module FRP.Peakachu
   ( runProgram
   ) where
 
-import FRP.Peakachu.Backend (Backend(..), Sink(..))
+import FRP.Peakachu.Backend (Backend(..))
+import FRP.Peakachu.Backend.Internal (Sink(..), MainLoop(..), ParallelIO(..))
 import FRP.Peakachu.Program (Program(..))
 import Control.Concurrent.MVar.YC (writeMVar)
 
@@ -29,7 +30,7 @@ runProgram backend program = do
           [] -> do
             putMVar progVar prog
             when (isNothing (progMore prog)) $ do
-              sinkQuitLoop sink
+              mlQuit $ sinkMainLoop sink
               writeMVar resumeVar False
             return False
           (x : xs) -> do
@@ -47,14 +48,14 @@ runProgram backend program = do
           consumeOutput
   sink <- runBackend backend handleInput
   writeMVar sinkVar (Just sink)
-  sinkInit sink
+  mlInit $ sinkMainLoop sink
   forkIO $ do
     threadDelay 300000
     consumeOutput
-  case sinkMainLoop sink of
+  case mlRun (sinkMainLoop sink) of
     Nothing ->
       doWhile $ do
         threadDelay 200000 -- 0.2 sec
         readMVar resumeVar
-    Just mainloop -> mainloop
+    Just mainloop -> runParIO mainloop
 

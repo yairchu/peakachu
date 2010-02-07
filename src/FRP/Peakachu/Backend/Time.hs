@@ -5,7 +5,8 @@ module FRP.Peakachu.Backend.Time
   ) where
 
 import Data.Monoid (Monoid(..))
-import FRP.Peakachu.Backend (Backend(..), Sink(..))
+import FRP.Peakachu.Backend (Backend(..))
+import FRP.Peakachu.Backend.Internal (Sink(..))
 
 import Data.Time.Clock (UTCTime, getCurrentTime)
 

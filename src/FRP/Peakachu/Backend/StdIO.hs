@@ -4,7 +4,8 @@ module FRP.Peakachu.Backend.StdIO
   ( stdoutB, interactB
   ) where
 
-import FRP.Peakachu.Backend (Backend(..), Sink(..))
+import FRP.Peakachu.Backend (Backend(..))
+import FRP.Peakachu.Backend.Internal (Sink(..), MainLoop(..), ParallelIO(..))
 import Control.Concurrent.MVar.YC (writeMVar)
 
 import Control.Concurrent.MVar
@@ -35,20 +36,23 @@ interactB =
     f handler = do
       resumeVar <- newMVar True
       lineVar <- newMVar ""
-      return mempty
-        { sinkQuitLoop = writeMVar resumeVar False
-        , sinkConsume = putStrLn
+      return Sink
+        { sinkConsume = putStrLn
         , sinkMainLoop =
-            Just . whileM (readMVar resumeVar) $ do
-              isReady <- hReady stdin
-              when isReady $ do
-                c <- getChar
-                prevLine <- takeMVar lineVar
-                case c of
-                  '\n' -> do
-                    handler prevLine
-                    putMVar lineVar ""
-                  _ ->
-                    putMVar lineVar $ prevLine ++ [c]
+            mempty
+            { mlQuit = writeMVar resumeVar False
+            , mlRun =
+                Just . ParIO . whileM (readMVar resumeVar) $ do
+                  isReady <- hReady stdin
+                  when isReady $ do
+                    c <- getChar
+                    prevLine <- takeMVar lineVar
+                    case c of
+                      '\n' -> do
+                        handler prevLine
+                        putMVar lineVar ""
+                      _ ->
+                        putMVar lineVar $ prevLine ++ [c]
+            }
         }
 

@@ -6,7 +6,8 @@ module FRP.Peakachu.Backend.File
   ) where
 
 import Data.ADT.Getters (mkADTGetters)
-import FRP.Peakachu.Backend (Backend(..), Sink(..))
+import FRP.Peakachu.Backend (Backend(..))
+import FRP.Peakachu.Backend.Internal (Sink(..))
 
 import Control.Monad (join)
 import Data.Function (fix)
