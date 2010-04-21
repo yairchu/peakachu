@@ -23,7 +23,8 @@ import Language.Haskell.TH.Syntax
 nameAddSuf :: String -> Name -> Name
 nameAddSuf suf name = mkName (nameBase name ++ suf)
 
-#if !MIN_VERSION_template_haskell(2,4,0)
+#if MIN_VERSION_template_haskell(2,4,0)
+#else
 type TyVarBndr = Name
 type Pred = Type
 #endif

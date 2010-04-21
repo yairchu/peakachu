@@ -84,7 +84,7 @@ glut =
         b handler = do
             _ <- getArgsAndInitialize
             initialDisplayMode $~ (DoubleBuffered:)
-            createWindow "test"
+            _ <- createWindow "test"
             displayCallback $= return ()
             -- all the OpenGL drawing must be performed from the same thread
             -- that runs the GLUT event-loop.

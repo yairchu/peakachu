@@ -49,7 +49,7 @@ interactB =
                     prevLine <- takeMVar lineVar
                     case c of
                       '\n' -> do
-                        handler prevLine
+                        _ <- handler prevLine
                         putMVar lineVar ""
                       _ ->
                         putMVar lineVar $ prevLine ++ [c]
