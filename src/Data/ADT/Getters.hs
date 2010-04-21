@@ -32,8 +32,7 @@ mkADTGetters typeName = do
   TyConI (DataD _ _ typeVars constructors _) <- reify typeName
   return $ constructors >>= mkADTGetterFunc typeName typeVars
 
-#if MIN_VERSION_template_haskell(2,4,0)
-#else
+#if !(MIN_VERSION_template_haskell(2,4,0))
 type TyVarBndr = Name
 #endif
 
