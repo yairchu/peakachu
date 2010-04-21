@@ -21,11 +21,19 @@ import Language.Haskell.TH.Syntax
 nameAddSuf :: String -> Name -> Name
 nameAddSuf suf name = mkName (nameBase name ++ suf)
 
+tyVarBndrAddSuf :: String -> TyVarBndr -> TyVarBndr
+tyVarBndrAddSuf suf (PlainTV name) = PlainTV (nameAddSuf suf name)
+tyVarBndrAddSuf suf (KindedTV name kind) = KindedTV (nameAddSuf suf name) kind
+
+predAddSuf :: String -> Pred -> Pred
+predAddSuf suf (ClassP name types) = ClassP name (map (typeAddSuf suf) types)
+predAddSuf suf (EqualP a b) = EqualP (typeAddSuf suf a) (typeAddSuf suf b)
+
 typeAddSuf :: String -> Type -> Type
 typeAddSuf suf (ForallT names cxt typ) =
   ForallT
-    (nameAddSuf suf <$> names)
-    (typeAddSuf suf <$> cxt)
+    (tyVarBndrAddSuf suf <$> names)
+    (predAddSuf suf <$> cxt)
     (typeAddSuf suf typ)
 typeAddSuf suf (VarT name) = VarT (nameAddSuf suf name)
 typeAddSuf suf (AppT left right) =
@@ -44,12 +52,16 @@ mkWithNewtypeFuncs idx typeName = do
   info <- reify typeName
   return $ idx >>= mkNewTypeFunc info With
 
+tyVarBndrName :: TyVarBndr -> Name
+tyVarBndrName (PlainTV name) = name
+tyVarBndrName (KindedTV name _) = name
+
 mkNewTypeFunc :: Info -> NewtypeFunc -> Int -> [Dec]
 mkNewTypeFunc info whatFunc funcIdx =
   [ SigD resName
     . ForallT
-      ( nameAddSuf <$> typeSuffixes <*> typeVars )
-      ( typeAddSuf <$> typeSuffixes <*> context )
+      ( tyVarBndrAddSuf <$> typeSuffixes <*> typeVars )
+      ( predAddSuf <$> typeSuffixes <*> context )
     . AppT (AppT ArrowT (mkFuncType inputType))
     $ mkFuncType outputType
   , FunD resName [clause]
@@ -66,7 +78,7 @@ mkNewTypeFunc info whatFunc funcIdx =
     xNames = mkName . ('x' :) . show <$> [0 .. funcIdx - 1]
     resName = mkName $ prefix ++ nameBase typeName ++ show funcIdx
     typeSuffixes = show <$> [0 .. funcIdx]
-    fullType = foldl AppT (ConT typeName) (map VarT typeVars)
+    fullType = foldl AppT (ConT typeName) (map (VarT . tyVarBndrName) typeVars)
     mkFuncType base =
       foldr AppT (typeAddSuf (last typeSuffixes) base)
       $ AppT ArrowT . (`typeAddSuf` base) <$> init typeSuffixes

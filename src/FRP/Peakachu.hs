@@ -49,7 +49,7 @@ runProgram backend program = do
   sink <- runBackend backend handleInput
   writeMVar sinkVar (Just sink)
   mlInit $ sinkMainLoop sink
-  forkIO $ do
+  _ <- forkIO $ do
     threadDelay 300000
     consumeOutput
   case mlRun (sinkMainLoop sink) of

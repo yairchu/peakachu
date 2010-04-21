@@ -30,11 +30,15 @@ mkADTGetters typeName = do
   TyConI (DataD _ _ typeVars constructors _) <- reify typeName
   return $ constructors >>= mkADTGetterFunc typeName typeVars
 
-mkADTGetterFunc :: Name -> [Name] -> Con -> [Dec]
+tyVarBndrName :: TyVarBndr -> Name
+tyVarBndrName (PlainTV name) = name
+tyVarBndrName (KindedTV name _) = name
+
+mkADTGetterFunc :: Name -> [TyVarBndr] -> Con -> [Dec]
 mkADTGetterFunc typeName typeVars constructor =
   [ SigD resName
     . ForallT typeVars []
-    . AppT (AppT ArrowT (foldl AppT (ConT typeName) (map VarT typeVars)))
+    . AppT (AppT ArrowT (foldl AppT (ConT typeName) (map (VarT . tyVarBndrName) typeVars)))
     . AppT (ConT (mkName "Maybe"))
     $ case containedTypes of
     [] -> TupleT 0
