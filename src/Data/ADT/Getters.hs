@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | ADT getters generation with Template Haskell
 --
 -- Example:
@@ -30,9 +32,17 @@ mkADTGetters typeName = do
   TyConI (DataD _ _ typeVars constructors _) <- reify typeName
   return $ constructors >>= mkADTGetterFunc typeName typeVars
 
+#if !MIN_VERSION_template_haskell(2,4,0)
+type TyVarBndr = Name
+#endif
+
 tyVarBndrName :: TyVarBndr -> Name
+#if MIN_VERSION_template_haskell(2,4,0)
 tyVarBndrName (PlainTV name) = name
 tyVarBndrName (KindedTV name _) = name
+#else
+tyVarBndrName = id
+#endif
 
 mkADTGetterFunc :: Name -> [TyVarBndr] -> Con -> [Dec]
 mkADTGetterFunc typeName typeVars constructor =

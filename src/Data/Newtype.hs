@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | In/with newtype functions generation with Template Haskell.
 --
 -- Example:
@@ -21,13 +23,34 @@ import Language.Haskell.TH.Syntax
 nameAddSuf :: String -> Name -> Name
 nameAddSuf suf name = mkName (nameBase name ++ suf)
 
+#if !MIN_VERSION_template_haskell(2,4,0)
+type TyVarBndr = Name
+type Pred = Type
+#endif
+
 tyVarBndrAddSuf :: String -> TyVarBndr -> TyVarBndr
+#if MIN_VERSION_template_haskell(2,4,0)
 tyVarBndrAddSuf suf (PlainTV name) = PlainTV (nameAddSuf suf name)
 tyVarBndrAddSuf suf (KindedTV name kind) = KindedTV (nameAddSuf suf name) kind
+#else
+tyVarBndrAddSuf = nameAddSuf
+#endif
 
 predAddSuf :: String -> Pred -> Pred
+#if MIN_VERSION_template_haskell(2,4,0)
 predAddSuf suf (ClassP name types) = ClassP name (map (typeAddSuf suf) types)
 predAddSuf suf (EqualP a b) = EqualP (typeAddSuf suf a) (typeAddSuf suf b)
+#else
+predAddSuf = typeAddSuf
+#endif
+
+tyVarBndrName :: TyVarBndr -> Name
+#if MIN_VERSION_template_haskell(2,4,0)
+tyVarBndrName (PlainTV name) = name
+tyVarBndrName (KindedTV name _) = name
+#else
+tyVarBndrName = id
+#endif
 
 typeAddSuf :: String -> Type -> Type
 typeAddSuf suf (ForallT names cxt typ) =
@@ -51,10 +74,6 @@ mkWithNewtypeFuncs :: [Int] -> Name -> Q [Dec]
 mkWithNewtypeFuncs idx typeName = do
   info <- reify typeName
   return $ idx >>= mkNewTypeFunc info With
-
-tyVarBndrName :: TyVarBndr -> Name
-tyVarBndrName (PlainTV name) = name
-tyVarBndrName (KindedTV name _) = name
 
 mkNewTypeFunc :: Info -> NewtypeFunc -> Int -> [Dec]
 mkNewTypeFunc info whatFunc funcIdx =
