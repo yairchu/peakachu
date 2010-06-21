@@ -1,6 +1,6 @@
 module FRP.Peakachu.Program.Cont
-  ( toProgram, inputP, outputP, breakP
-  ) where
+    ( toProgram, inputP, outputP, breakP
+    ) where
 
 import FRP.Peakachu.Program (Program(..), withAppendProgram1, emptyP)
 

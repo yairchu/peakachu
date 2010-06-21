@@ -5,8 +5,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module FRP.Peakachu.Backend.GLUT.Getters
-  ( gChar, gMouseButton, gSpecialKey, gDown, gUp
-  ) where
+    ( gChar, gMouseButton, gSpecialKey, gDown, gUp
+    ) where
 
 import Data.ADT.Getters (mkADTGetters)
 

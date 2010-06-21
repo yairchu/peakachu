@@ -1,9 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module FRP.Peakachu.Backend.File
-  ( FileToProgram(..), ProgramToFile(..), fileB
-  , gFileData, gFileError
-  ) where
+    ( FileToProgram(..), ProgramToFile(..), fileB
+    , gFileData, gFileError
+    ) where
 
 import Data.ADT.Getters (mkADTGetters)
 import FRP.Peakachu.Backend (Backend(..))
@@ -16,45 +16,45 @@ import System.IO (IOMode(ReadMode), openFile, hClose, hGetChar)
 import System.IO.Error (try, isEOFError)
 
 data FileToProgram a
-  = FileData String a
-  | FileError a
+    = FileData String a
+    | FileError a
 $(mkADTGetters ''FileToProgram)
 
 data ProgramToFile a
-  = ReadFile FilePath a
-  | WriteFile FilePath String a
+    = ReadFile FilePath a
+    | WriteFile FilePath String a
 
 maybeIO :: (IOError -> Bool) -> IO a -> IO (Maybe a)
 maybeIO isExpected =
-  join . fmap f . try
-  where
-    f (Right x) = return $ Just x
-    f (Left err)
-      | isExpected err = return Nothing
-      | otherwise = ioError err
+    join . fmap f . try
+    where
+        f (Right x) = return $ Just x
+        f (Left err)
+            | isExpected err = return Nothing
+            | otherwise = ioError err
 
 -- Lazy IO forbidden because imho it is horrible
 strictReadFile :: FilePath -> IO String
 strictReadFile filename = do
-  file <- openFile filename ReadMode
-  contents <- fix $ \rest -> do
-    mc <- maybeIO isEOFError $ hGetChar file
-    case mc of
-      Nothing -> return ""
-      Just c -> fmap (c :) rest
-  hClose file
-  return contents
+    file <- openFile filename ReadMode
+    contents <- fix $ \rest -> do
+        mc <- maybeIO isEOFError $ hGetChar file
+        case mc of
+            Nothing -> return ""
+            Just c -> fmap (c :) rest
+    hClose file
+    return contents
 
 fileB :: Backend (ProgramToFile a) (FileToProgram a)
 fileB =
-  Backend f
-  where
-    f handler =
-      return mempty { sinkConsume = consume }
-      where
-        consume (ReadFile filename tag) =
-          strictReadFile filename >>=
-          handler . (`FileData` tag)
-        consume (WriteFile filename contents _) =
-          writeFile filename contents
+    Backend f
+    where
+        f handler =
+            return mempty { sinkConsume = consume }
+            where
+                consume (ReadFile filename tag) =
+                    strictReadFile filename >>=
+                    handler . (`FileData` tag)
+                consume (WriteFile filename contents _) =
+                    writeFile filename contents
 

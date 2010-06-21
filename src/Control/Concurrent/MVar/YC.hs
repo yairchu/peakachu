@@ -1,6 +1,6 @@
 module Control.Concurrent.MVar.YC (
-  modifyMVarPure, writeMVar
-  ) where
+    modifyMVarPure, writeMVar
+    ) where
 
 import Control.Applicative ()
 import Control.Concurrent.MVar (MVar, modifyMVar_)
