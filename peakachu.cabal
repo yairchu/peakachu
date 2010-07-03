@@ -1,5 +1,5 @@
 Name:                peakachu
-Version:             0.3
+Version:             0.3.0
 Category:            FRP
 Synopsis:            Experiemental library for composable interactive programs
 Description:
@@ -18,11 +18,10 @@ Library
   hs-Source-Dirs:      src
   Extensions:
   Build-Depends:       base >= 3 && < 5, template-haskell,
-                       TypeCompose, derive, mtl,
+                       TypeCompose, derive,
                        GLUT, time
   Exposed-modules:     FRP.Peakachu
                        FRP.Peakachu.Program
-                       FRP.Peakachu.Program.Cont
                        FRP.Peakachu.Backend
                        FRP.Peakachu.Backend.Internal
                        FRP.Peakachu.Backend.File
@@ -33,7 +32,6 @@ Library
                        Control.Concurrent.MVar.YC
                        Control.FilterCategory
                        Data.ADT.Getters
-                       Data.Bijection.YC
                        Data.Newtype
   ghc-options:         -O2 -Wall
 

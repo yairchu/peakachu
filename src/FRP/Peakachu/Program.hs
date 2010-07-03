@@ -1,43 +1,40 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, TemplateHaskell #-}
 
--- | @Program a b@ represents a computer program,
--- which accepts inputs of type @a@, outputs values of type @b@,
--- and can terminate at any point.
--- It can output zero or more values after each input.
+-- | @Program a b@ is a pure representation of a computer program,
+-- which accepts inputs of type @a@, and outputs values of type @b@.
+-- It may also terminate. It can output zero or more @b@ values after each @a@ input.
 --
 -- * A simple stateless input-output-loop can be created from a function
 --   with 'arrC'.
 --
--- * A simple statefull input-output-loop can be created using 'scanlP'.
+-- * A simple stateful input-output-loop can be created using 'scanlP'.
 --
--- * Two programs can be composed, such that ones' outputs are fed
---   as another's inputs. ('Category')
+-- * Outputs can be filtered using 'filterC'.
 --
--- * Program's outputs can be filtered to create a new program. (@filterC@)
+-- Programs may also be composed together in several ways using common type-classes
 --
--- There are two ways of combining 'Program's ('Monoid'): running them in parallel, or in sequence:
+-- * 'Category': @Program a b -> Program b c -> Program a c@. One program's outputs are fed
+--   to another program as input.
 --
--- * 'AppendProgram' allows us to run one program after the other finishes. @AppendProgram@ is also a 'Monad' and 'MonadPlus', where the monadic bind allows us to invoke inner programs based on an outer program's outputs.
+-- * 'Monoid': @Program a b -> Program a b -> Program a b@. Both programs run in parallel processing the same input. Resulting Program outputs both's outputs.
 --
--- * 'MergeProgram' runs two programs in parallel and outputs both of their outputs. @MergeProgram@ is also an 'Applicative', where for every input, it combines each of the first program's response outputs with each of the second program's.
+-- * 'Applicative': @Program a (b -> c) -> Program a b -> Program a c@.
+--
+-- * Alternative `MonadPlus`: 'AppendProgram' is a newtype wrapper whose `Monoid` instance runs one program after the other finishes (like `ZipList` offers an alternative `Applicative` instance for lists). It's also a `Monad` ant its monadic bind allows us to invoke inner programs based on an outer program's outputs.
 
 module FRP.Peakachu.Program
-    ( Program(..), MergeProgram(..), AppendProgram(..)
-    , ProgCat(..)
-    , singleValueP, lstP, lstPs, delayP
-    , withMergeProgram1, withMergeProgram2
+    ( Program(..), AppendProgram(..)
+    , scanlP, emptyP, takeWhileP, loopbackP, singleValueP, lstP, lstPs, delayP
     , withAppendProgram1, withAppendProgram2
     ) where
 
 import Control.FilterCategory (FilterCategory(..), genericFlattenC)
 import Data.ADT.Getters (mkADTGetters)
-import Data.Bijection.YC (withBi2)
 import Data.Newtype (mkWithNewtypeFuncs)
 
 import Control.Applicative (Applicative(..), (<$>), liftA2)
 import Control.Category (Category(..))
 import Control.Monad (MonadPlus(..), ap)
-import Data.Bijection (Bijection(..), bimap)
 import Data.DeriveTH (derive, makeFunctor)
 import Data.List (genericDrop, genericTake)
 import Data.Maybe (mapMaybe, catMaybes)
@@ -51,27 +48,6 @@ data Program a b = Program
     , progMore :: Maybe (a -> Program a b)
     }
 $(derive makeFunctor ''Program)
-
-class FilterCategory prog => ProgCat prog where
-    -- | Create a stateful input-output-loop from a simple function
-    scanlP :: (b -> a -> b) -> b -> prog a b
-    -- | A program that terminates immediately
-    emptyP :: prog a b
-    -- | Terminate when a predicate on input fails
-    takeWhileP :: (a -> Bool) -> prog a a
-    -- | Feed some outputs of a 'Program' to itself
-    loopbackP :: prog a (Either a b) -> prog a b
-
--- | A program that outputs a value and immediately terminates
-singleValueP :: ProgCat prog => prog a ()
-singleValueP = scanlP const () . emptyP
-
--- | Delay the outputs of a 'Program'
-delayP :: (Integral i, ProgCat prog) => i -> prog a a
-delayP n =
-    flattenC . arrC (genericDrop n) . scanlP step []
-    where
-        step xs = (: genericTake n xs)
 
 instance Category Program where
     id =
@@ -101,72 +77,79 @@ instance FilterCategory Program where
 
 $(mkADTGetters ''Either)
 
-instance ProgCat Program where
-    emptyP = Program [] Nothing
-    scanlP step start =
-        Program [start] $ Just (scanlP step . step start)
-    takeWhileP cond =
-        Program [] (Just f)
-        where
-            f x
-                | cond x = Program [x] (Just f)
-                | otherwise = Program [] Nothing
-    loopbackP program =
+-- | Create a stateful input-output-loop from a simple function
+scanlP :: (b -> a -> b) -> b -> Program a b
+scanlP step start = Program [start] $ Just (scanlP step . step start)
+
+-- | A program that terminates immediately
+emptyP :: Program a b
+emptyP = Program [] Nothing
+
+-- | Terminate when a predicate on input fails
+takeWhileP :: (a -> Bool) -> Program a a
+takeWhileP cond =
+    Program [] (Just f)
+    where
+        f x
+            | cond x = Program [x] (Just f)
+            | otherwise = Program [] Nothing
+
+-- | Feed some outputs of a 'Program' to itself
+loopbackP :: Program a (Either a b) -> Program a b
+loopbackP program =
+    Program
+    { progVals = stuff >>= mapMaybe gRight . progVals
+    , progMore = (fmap . fmap) loopbackP . progMore . last $ stuff
+    }
+    where
+        stuff =
+            scanl step program
+            . mapMaybe gLeft . progVals $ program
+        step prev val =
+            maybe emptyP ($ val) (progMore prev)
+
+-- | A program that outputs a value and immediately terminates
+singleValueP :: Program a ()
+singleValueP = scanlP const () . emptyP
+
+-- | Delay the outputs of a 'Program'
+delayP :: Integral i => i -> Program a a
+delayP n =
+    flattenC . arrC (genericDrop n) . scanlP step []
+    where
+        step xs = (: genericTake n xs)
+
+-- would be nice to derive this.
+-- but "derive" currently can't: http://code.google.com/p/ndmitchell/issues/detail?id=270&q=proj:Derive
+instance Monoid (Program a b) where
+    mempty = Program mempty mempty
+    mappend left right =
         Program
-        { progVals = stuff >>= mapMaybe gRight . progVals
-        , progMore = (fmap . fmap) loopbackP . progMore . last $ stuff
-        }
-        where
-            stuff =
-                scanl step program
-                . mapMaybe gLeft . progVals $ program
-            step prev val =
-                maybe emptyP ($ val) (progMore prev)
-
--- Combine programs to run in parallel
-newtype MergeProgram a b = MergeProg
-    { runMergeProg :: Program a b
-    } deriving (Category, FilterCategory, Functor, ProgCat)
-
-$(mkWithNewtypeFuncs [1,2] ''MergeProgram)
-
-biMergeProg :: Bijection (->) (Program a b) (MergeProgram a b)
-biMergeProg = Bi MergeProg runMergeProg
-
-instance Monoid (MergeProgram a b) where
-    mempty = emptyP
-    mappend (MergeProg left) (MergeProg right) =
-        MergeProg Program
-        { progVals =
-            mappend (progVals left) (progVals right)
-        , progMore =
-            withBi2 ((bimap . bimap) biMergeProg)
-            mappend (progMore left) (progMore right)
+        { progVals = mappend (progVals left) (progVals right)
+        , progMore = mappend (progMore left) (progMore right)
         }
 
-instance Applicative (MergeProgram a) where
+instance Applicative (Program a) where
     pure x =
-        MergeProg Program
+        Program
         { progVals = pure x
-        , progMore = pure . pure . runMergeProg . pure $ x
+        , progMore = (pure . pure) (pure x)
         }
-    MergeProg left <*> MergeProg right =
-        MergeProg Program
+    left <*> right =
+        Program
         { progVals = progVals left <*> progVals right
-        , progMore =
-            (liftA2 . liftA2 . withMergeProgram2)
-            (<*>) (progMore left) (progMore right)
+        , progMore = (liftA2 . liftA2) (<*>) (progMore left) (progMore right)
         }
 
 -- Combine programs to run in sequence
 newtype AppendProgram a b = AppendProg
     { runAppendProg :: Program a b
-    } deriving (Category, FilterCategory, Functor, ProgCat)
+    } deriving (Category, FilterCategory, Functor)
 
 $(mkWithNewtypeFuncs [1,2] ''AppendProgram)
 
 instance Monoid (AppendProgram a b) where
-    mempty = emptyP
+    mempty = AppendProg emptyP
     mappend (AppendProg left) (AppendProg right) =
         AppendProg $
         case progMore left of
@@ -201,11 +184,11 @@ instance Applicative (AppendProgram a) where
     (<*>) = ap
 
 -- | Given a partial function @(a -> Maybe b)@ and a start value, output its most recent result on an input.
-lstPs :: ProgCat prog => Maybe b -> (a -> Maybe b) -> prog a b
+lstPs :: Maybe b -> (a -> Maybe b) -> Program a b
 lstPs start f =
     genericFlattenC . scanlP (flip mplus) start . arrC f
 
 -- | Given a partial function @(a -> Maybe b)@, output its most recent result on an input.
-lstP :: ProgCat prog => (a -> Maybe b) -> prog a b
+lstP :: (a -> Maybe b) -> Program a b
 lstP = lstPs Nothing
 
