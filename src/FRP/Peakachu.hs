@@ -1,20 +1,35 @@
 module FRP.Peakachu
-    ( runProgram
+    ( processList, processListV, runProgram
     ) where
 
-import FRP.Peakachu.Backend (Backend(..))
-import FRP.Peakachu.Backend.Internal (Sink(..), MainLoop(..), ParallelIO(..))
-import FRP.Peakachu.Program (Program(..))
+import FRP.Peakachu.Backend (Backend (..))
+import FRP.Peakachu.Backend.Internal (Sink (..), MainLoop (..), ParallelIO (..))
+import FRP.Peakachu.Program (Program (..))
 import Control.Concurrent.MVar.YC (writeMVar)
 
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newMVar, putMVar, readMVar, takeMVar)
-import Control.Monad (when)
-import Data.Function (fix)
+import Control.Monad (liftM, when)
+import Control.Monad.Trans.List.Funcs (repeatM)
+import Data.List.Class (List, concat, execute, scanl, takeWhile)
 import Data.Maybe (isNothing)
+import Prelude hiding (concat, scanl, takeWhile)
+
+-- | "Verbose" version of 'processList'.
+--
+-- The program's outputs after each input are grouped together
+processListV :: List l => Program a b -> l a -> l [b]
+processListV program
+    = liftM (progVals . snd) . takeWhile fst . scanl step (True, program)
+    where
+        step (_, Program _ Nothing) _ = (False, Program [] Nothing)
+        step (_, Program _ (Just more)) x = (True, more x)
+
+processList :: List l => Program a b -> l a -> l b
+processList program = concat . processListV program
 
 doWhile :: Monad m => m Bool -> m ()
-doWhile x = fix $ (x >>=) . flip when
+doWhile = execute . takeWhile id . repeatM
 
 runProgram :: Backend o i -> Program i o -> IO ()
 runProgram backend program = do
@@ -58,4 +73,3 @@ runProgram backend program = do
                 threadDelay 200000 -- 0.2 sec
                 readMVar resumeVar
         Just mainloop -> runParIO mainloop
-

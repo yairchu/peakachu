@@ -18,7 +18,7 @@ Library
   hs-Source-Dirs:      src
   Extensions:
   Build-Depends:       base >= 3 && < 5, template-haskell,
-                       TypeCompose, derive,
+                       List >= 0.4.0 && < 0.6.0, TypeCompose, derive,
                        GLUT, time
   Exposed-modules:     FRP.Peakachu
                        FRP.Peakachu.Program
