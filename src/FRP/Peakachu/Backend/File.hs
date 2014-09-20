@@ -9,12 +9,12 @@ import Data.ADT.Getters (mkADTGetters)
 import FRP.Peakachu.Backend (Backend(..))
 import FRP.Peakachu.Backend.Internal (Sink(..))
 
+import Control.Exception (try)
 import Control.Monad (join)
 import Data.Function (fix)
 import Data.Monoid (Monoid(..))
 import System.IO (IOMode(ReadMode), openFile, hClose, hGetChar)
 import System.IO.Error (isEOFError)
-import Control.Exception (try)
 
 data FileToProgram a
     = FileData String a
