@@ -13,7 +13,8 @@ import Control.Monad (join)
 import Data.Function (fix)
 import Data.Monoid (Monoid(..))
 import System.IO (IOMode(ReadMode), openFile, hClose, hGetChar)
-import System.IO.Error (try, isEOFError)
+import System.IO.Error (isEOFError)
+import Control.Exception (try)
 
 data FileToProgram a
     = FileData String a
